@@ -19,6 +19,7 @@ package ru.tinkoff.acquiring.sdk.viewmodel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import ru.tinkoff.acquiring.sdk.AcquiringSdk
+import ru.tinkoff.acquiring.sdk.TinkoffAcquiring
 import ru.tinkoff.acquiring.sdk.exceptions.AcquiringSdkException
 import ru.tinkoff.acquiring.sdk.models.AsdkState
 import ru.tinkoff.acquiring.sdk.models.BrowseFpsBankScreenState
@@ -119,6 +120,7 @@ internal class PaymentViewModel(handleErrorsInSdk: Boolean, sdk: AcquiringSdk) :
     }
 
     fun startPayment(paymentOptions: PaymentOptions, paymentSource: PaymentSource, email: String? = null) {
+        TinkoffAcquiring.email = email
         changeScreenState(LoadingState)
         paymentProcess.createPaymentProcess(paymentSource, paymentOptions, email).subscribe(paymentListener).start()
     }
