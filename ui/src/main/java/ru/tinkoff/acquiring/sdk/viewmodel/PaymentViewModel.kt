@@ -122,6 +122,9 @@ internal class PaymentViewModel(handleErrorsInSdk: Boolean, sdk: AcquiringSdk) :
     fun startPayment(paymentOptions: PaymentOptions, paymentSource: PaymentSource, email: String? = null) {
         TinkoffAcquiring.email = email
         changeScreenState(LoadingState)
+        if (paymentOptions.order.receipt?.email.isNullOrEmpty()){
+            paymentOptions.order.receipt?.email = email
+        }
         paymentProcess.createPaymentProcess(paymentSource, paymentOptions, email).subscribe(paymentListener).start()
     }
 
