@@ -184,4 +184,8 @@ class TinkoffAcquiring(
         options.setTerminalParams(terminalKey, publicKey)
         setup(options)
     }
+
+    companion object{
+        var email: String? = null
+    }
 }

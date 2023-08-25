@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import ru.tinkoff.acquiring.sdk.AcquiringSdk
+import ru.tinkoff.acquiring.sdk.TinkoffAcquiring
 import ru.tinkoff.acquiring.sdk.exceptions.AcquiringApiException
 import ru.tinkoff.acquiring.sdk.exceptions.AcquiringSdkException
 import ru.tinkoff.acquiring.sdk.models.options.screen.PaymentOptions
@@ -105,6 +106,7 @@ class RecurrentPaymentProcess internal constructor(
         paymentOptions: PaymentOptions,
         email: String?
     ) {
+        TinkoffAcquiring.email = email
         val init = initMethods.init(paymentOptions, email)
         val paymentId = checkNotNull(init.paymentId) { "paymentId must be not null" }
         _state.value = PaymentByCardState.Started(paymentOptions, email, paymentId)
