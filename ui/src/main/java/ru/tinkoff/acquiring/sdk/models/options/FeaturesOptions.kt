@@ -20,6 +20,8 @@ import android.os.Parcel
 import android.os.Parcelable
 import androidx.annotation.StyleRes
 import ru.tinkoff.acquiring.sdk.cardscanners.CameraCardScanner
+import ru.tinkoff.acquiring.sdk.cardscanners.delegate.CardScannerContract
+import ru.tinkoff.acquiring.sdk.cardscanners.delegate.CardScannerDelegate
 import ru.tinkoff.acquiring.sdk.localization.AsdkSource
 import ru.tinkoff.acquiring.sdk.localization.LocalizationSource
 import ru.tinkoff.acquiring.sdk.models.DarkThemeMode
@@ -61,12 +63,28 @@ class FeaturesOptions() : Options(), Parcelable {
     /**
      * Обработчик сканирования карты с помощью камеры телефона
      */
+    @Deprecated("use cameraCardScannerContract")
     var cameraCardScanner: CameraCardScanner? = null
+
+    /**
+     * Контракт, для внедрения стороннего сканнера в приложение
+     */
+    var cameraCardScannerContract: CardScannerContract? = null
 
     /**
      * Включение приема платежа через Систему быстрых платежей
      */
     var fpsEnabled: Boolean = false
+
+    /**
+     * Включение приема платежа через Tinkoff Pay
+     */
+    var tinkoffPayEnabled: Boolean = true
+
+    /**
+     * Включение приема платежа через Yandex Pay
+     */
+    var yandexPayEnabled: Boolean = false
 
     /**
      * Идентификатор карты в системе банка.
@@ -107,20 +125,40 @@ class FeaturesOptions() : Options(), Parcelable {
      */
     var emailRequired: Boolean = true
 
+    /**
+     * При выставлении параметра в true, введенный пользователем на форме оплаты email будет
+     * продублирован в объект чека при отправке запроса Init.
+     *
+     * Не имеет эффекта если объект чека отсутствует.
+     */
+    var duplicateEmailToReceipt: Boolean = false
+
+    /**
+     * Следует ли при валидации данных карты показывать пользователю ошибку, если введенная
+     * им срок действия карты уже истек.
+     * Если установить в true - пользователь не сможет добавить или провести оплату с помощью
+     * карты с истекшим сроком действия.
+     */
+    var validateExpiryDate: Boolean = false
+
     private constructor(parcel: Parcel) : this() {
         parcel.run {
             theme = readInt()
             useSecureKeyboard = readByte().toInt() != 0
             localizationSource = readSerializable() as LocalizationSource
             cameraCardScanner = readSerializable() as CameraCardScanner?
+            cameraCardScannerContract = readSerializable() as CardScannerContract?
             handleCardListErrorInSdk = readByte().toInt() != 0
             darkThemeMode = DarkThemeMode.valueOf(readString() ?: DarkThemeMode.AUTO.name)
             fpsEnabled = readByte().toInt() != 0
+            tinkoffPayEnabled = readByte().toInt() != 0
             selectedCardId = readString()
             handleErrorsInSdk = readByte().toInt() != 0
             emailRequired = readByte().toInt() != 0
+            duplicateEmailToReceipt = readByte().toInt() != 0
             userCanSelectCard = readByte().toInt() != 0
             showOnlyRecurrentCards = readByte().toInt() != 0
+            validateExpiryDate = readByte().toInt() != 0
         }
     }
 
@@ -130,14 +168,18 @@ class FeaturesOptions() : Options(), Parcelable {
             writeByte((if (useSecureKeyboard) 1 else 0).toByte())
             writeSerializable(localizationSource)
             writeSerializable(cameraCardScanner)
+            writeSerializable(cameraCardScannerContract)
             writeByte((if (handleCardListErrorInSdk) 1 else 0).toByte())
             writeString(darkThemeMode.name)
             writeByte((if (fpsEnabled) 1 else 0).toByte())
+            writeByte((if (tinkoffPayEnabled) 1 else 0).toByte())
             writeString(selectedCardId)
             writeByte((if (handleErrorsInSdk) 1 else 0).toByte())
             writeByte((if (emailRequired) 1 else 0).toByte())
+            writeByte((if (duplicateEmailToReceipt) 1 else 0).toByte())
             writeByte((if (userCanSelectCard) 1 else 0).toByte())
             writeByte((if (showOnlyRecurrentCards) 1 else 0).toByte())
+            writeByte((if (validateExpiryDate) 1 else 0).toByte())
         }
     }
 

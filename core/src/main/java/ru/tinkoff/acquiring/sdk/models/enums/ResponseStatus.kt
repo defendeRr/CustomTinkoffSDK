@@ -23,7 +23,7 @@ package ru.tinkoff.acquiring.sdk.models.enums
  */
 enum class ResponseStatus {
     NEW,
-    CANCELLED,
+    CANCELED,
     PREAUTHORIZING,
     FORMSHOWED,
     AUTHORIZING,
@@ -32,15 +32,18 @@ enum class ResponseStatus {
     AUTHORIZED,
     REVERSING,
     REVERSED,
+    PARTIAL_REVERSED,
     CONFIRMING,
     CONFIRMED,
     REFUNDING,
     REFUNDED,
+    PARTIAL_REFUNDED,
     REJECTED,
+    DEADLINE_EXPIRED,
     UNKNOWN,
     LOOP_CHECKING,
     COMPLETED,
-    AUTH_FAILED,
+    AUTH_FAIL,
     FORM_SHOWED;
 
     override fun toString(): String {
@@ -55,6 +58,8 @@ enum class ResponseStatus {
 
         private const val TDS_CHECKING_STRING = "3DS_CHECKING"
         private const val TDS_CHECKED_STRING = "3DS_CHECKED"
+        val successStatuses = setOf(CONFIRMED,AUTHORIZED)
+        fun checkSuccessStatuses(status: ResponseStatus) : Boolean = status in successStatuses
 
         @JvmStatic
         fun fromString(stringValue: String): ResponseStatus {

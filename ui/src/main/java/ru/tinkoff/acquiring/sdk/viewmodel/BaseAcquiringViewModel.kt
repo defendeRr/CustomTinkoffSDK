@@ -16,9 +16,13 @@
 
 package ru.tinkoff.acquiring.sdk.viewmodel
 
+import android.app.Application
+import android.content.Context
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.CoroutineScope
 import ru.tinkoff.acquiring.sdk.AcquiringSdk
 import ru.tinkoff.acquiring.sdk.exceptions.AcquiringApiException
 import ru.tinkoff.acquiring.sdk.exceptions.NetworkException
@@ -30,9 +34,13 @@ import ru.tinkoff.acquiring.sdk.utils.CoroutineManager
 /**
  * @author Mariya Chernyadieva
  */
-internal open class BaseAcquiringViewModel(val handleErrorsInSdk: Boolean, val sdk: AcquiringSdk) : ViewModel() {
+internal open class BaseAcquiringViewModel(
+    application: Application,
+    val handleErrorsInSdk: Boolean,
+    val sdk: AcquiringSdk
+) : AndroidViewModel(application) {
 
-    protected val coroutine = CoroutineManager(exceptionHandler = { handleException(it) })
+    val coroutine = CoroutineManager(exceptionHandler = { handleException(it) })
     private val loadState: MutableLiveData<LoadState> = MutableLiveData()
     private val screenState: MutableLiveData<ScreenState> = MutableLiveData()
     private val screenChangeEvent: MutableLiveData<SingleEvent<Screen>> = MutableLiveData()
@@ -41,12 +49,14 @@ internal open class BaseAcquiringViewModel(val handleErrorsInSdk: Boolean, val s
     val screenStateLiveData: LiveData<ScreenState> = screenState
     val loadStateLiveData: LiveData<LoadState> = loadState
 
+    val context: Context get() = getApplication<Application>().applicationContext
+
     override fun onCleared() {
         super.onCleared()
         coroutine.cancelAll()
     }
 
-    fun handleException(throwable: Throwable) {
+    fun handleException(throwable: Throwable, paymentId: Long? = null) {
         loadState.value = LoadedState
         when (throwable) {
             is NetworkException -> changeScreenState(ErrorScreenState(AsdkLocalization.resources.payDialogErrorNetwork!!))
@@ -56,10 +66,10 @@ internal open class BaseAcquiringViewModel(val handleErrorsInSdk: Boolean, val s
                     if (errorCode != null && (AcquiringApi.errorCodesFallback.contains(errorCode) ||
                                     AcquiringApi.errorCodesForUserShowing.contains(errorCode))) {
                         changeScreenState(ErrorScreenState(resolveErrorMessage(throwable)))
-                    } else changeScreenState(FinishWithErrorScreenState(throwable))
-                } else changeScreenState(FinishWithErrorScreenState(throwable))
+                    } else changeScreenState(FinishWithErrorScreenState(throwable, paymentId))
+                } else changeScreenState(FinishWithErrorScreenState(throwable, paymentId))
             }
-            else -> changeScreenState(FinishWithErrorScreenState(throwable))
+            else -> changeScreenState(FinishWithErrorScreenState(throwable,paymentId))
         }
     }
 

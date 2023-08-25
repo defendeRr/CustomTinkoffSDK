@@ -26,6 +26,7 @@ import java.util.*
 /**
  * @author Mariya Chernyadieva
  */
+@Deprecated("Удалить в 3.1.0. Для кастомизации локализации необходимо использовать замену строковых ресурсов")
 internal object AsdkLocalization {
 
     lateinit var resources: LocalizationResources
@@ -47,6 +48,8 @@ internal object AsdkLocalization {
         }
         resources = parser.parse()
     }
+
+    fun isInitialized() = this::resources.isInitialized
 
     private fun resolveLanguage(language: Language?): Language {
         return language ?: when (Locale.getDefault().language) {

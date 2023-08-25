@@ -20,10 +20,8 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.graphics.Point
 import android.os.Bundle
 import android.view.View
-import android.view.WindowManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.lifecycle.Observer
@@ -36,16 +34,16 @@ import ru.tinkoff.acquiring.sdk.models.ScreenState
 import ru.tinkoff.acquiring.sdk.models.ThreeDsData
 import ru.tinkoff.acquiring.sdk.models.options.screen.BaseAcquiringOptions
 import ru.tinkoff.acquiring.sdk.models.result.AsdkResult
+import ru.tinkoff.acquiring.sdk.models.result.CardResult
 import ru.tinkoff.acquiring.sdk.network.AcquiringApi
-import ru.tinkoff.acquiring.sdk.network.AcquiringApi.COMPLETE_3DS_METHOD_V2
 import ru.tinkoff.acquiring.sdk.network.AcquiringApi.SUBMIT_3DS_AUTHORIZATION
 import ru.tinkoff.acquiring.sdk.network.AcquiringApi.SUBMIT_3DS_AUTHORIZATION_V2
-import ru.tinkoff.acquiring.sdk.responses.Check3dsVersionResponse
+import ru.tinkoff.acquiring.sdk.redesign.common.LauncherConstants.EXTRA_CARD_PAN
+import ru.tinkoff.acquiring.sdk.redesign.common.LauncherConstants.EXTRA_PAYMENT_ID
+import ru.tinkoff.acquiring.sdk.threeds.ThreeDsHelper
 import ru.tinkoff.acquiring.sdk.utils.Base64
-import ru.tinkoff.acquiring.sdk.utils.getTimeZoneOffsetInMinutes
 import ru.tinkoff.acquiring.sdk.viewmodel.ThreeDsViewModel
 import java.net.URLEncoder
-import java.util.*
 
 internal class ThreeDsActivity : BaseAcquiringActivity() {
 
@@ -54,64 +52,33 @@ internal class ThreeDsActivity : BaseAcquiringActivity() {
     private lateinit var viewModel: ThreeDsViewModel
     private lateinit var data: ThreeDsData
     private var termUrl: String? = null
+    private var panSuffix: String = ""
 
     companion object {
 
-        const val RESULT_DATA = "result_data"
-        const val ERROR_DATA = "result_error"
-        const val RESULT_ERROR = 564
-
         const val THREE_DS_DATA = "three_ds_data"
-        private const val OPTIONS = "options"
-
-        private const val THREE_DS_CALLED_FLAG = "Y"
-        private const val THREE_DS_NOT_CALLED_FLAG = "N"
 
         private const val WINDOW_SIZE_CODE = "05"
         private const val MESSAGE_TYPE = "CReq"
 
         private val TERM_URL = "${AcquiringApi.getUrl(SUBMIT_3DS_AUTHORIZATION)}/$SUBMIT_3DS_AUTHORIZATION"
-        private val TERM_URL_V2 = "${AcquiringApi.getUrl(SUBMIT_3DS_AUTHORIZATION_V2)}/$SUBMIT_3DS_AUTHORIZATION_V2"
-        private val NOTIFICATION_URL = "${AcquiringApi.getUrl(COMPLETE_3DS_METHOD_V2)}/$COMPLETE_3DS_METHOD_V2"
+        val TERM_URL_V2 = "${AcquiringApi.getUrl(SUBMIT_3DS_AUTHORIZATION_V2)}/$SUBMIT_3DS_AUTHORIZATION_V2"
 
         private val cancelActions = arrayOf("cancel.do", "cancel=true")
 
-        fun createIntent(context: Context, options: BaseAcquiringOptions, data: ThreeDsData): Intent {
+        fun createIntent(
+            context: Context,
+            options: BaseAcquiringOptions,
+            data: ThreeDsData,
+            panSuffix: String = ""
+        ): Intent {
             val intent = Intent(context, ThreeDsActivity::class.java)
             intent.putExtra(THREE_DS_DATA, data)
-            intent.putExtra(OPTIONS, options)
+            intent.putExtras(Bundle().apply {
+                putParcelable(EXTRA_OPTIONS, options)
+            })
+            intent.putExtra(EXTRA_CARD_PAN, panSuffix)
             return intent
-        }
-
-        fun collectData(context: Context, response: Check3dsVersionResponse?): MutableMap<String, String> {
-            var threeDSCompInd = THREE_DS_NOT_CALLED_FLAG
-            if (response != null) {
-                val hiddenWebView = WebView(context)
-
-                val threeDsMethodData = JSONObject().apply {
-                    put("threeDSMethodNotificationURL", NOTIFICATION_URL)
-                    put("threeDSServerTransID", response.serverTransId)
-                }
-
-                val dataBase64 = Base64.encodeToString(threeDsMethodData.toString().toByteArray(), Base64.DEFAULT).trim()
-                val params = "threeDSMethodData=${URLEncoder.encode(dataBase64, "UTF-8")}"
-
-                hiddenWebView.postUrl(response.threeDsMethodUrl, params.toByteArray())
-                threeDSCompInd = THREE_DS_CALLED_FLAG
-            }
-
-            val display = (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
-            val point = Point()
-            display.getSize(point)
-
-            return mutableMapOf<String, String>().apply {
-                put("threeDSCompInd", threeDSCompInd)
-                put("language", Locale.getDefault().toString().replace("_", "-"))
-                put("timezone", getTimeZoneOffsetInMinutes())
-                put("screen_height", "${point.y}")
-                put("screen_width", "${point.x}")
-                put("cresCallbackUrl", TERM_URL_V2)
-            }
         }
     }
 
@@ -130,6 +97,7 @@ internal class ThreeDsActivity : BaseAcquiringActivity() {
 
         progressBar = findViewById(R.id.acq_progressbar)
         content = wvThreeDs
+        panSuffix = intent.getStringExtra(EXTRA_CARD_PAN) ?: ""
 
         data = intent.getSerializableExtra(THREE_DS_DATA) as ThreeDsData
 
@@ -141,14 +109,21 @@ internal class ThreeDsActivity : BaseAcquiringActivity() {
 
     override fun setSuccessResult(result: AsdkResult) {
         val intent = Intent()
-        intent.putExtra(RESULT_DATA, result)
+        val cardResult = result.takeIf { result is CardResult }
+            ?.let {
+                it as CardResult
+                CardResult(it.cardId, panSuffix)
+            }
+            ?: result
+        intent.putExtra(ThreeDsHelper.Launch.RESULT_DATA, cardResult)
         setResult(Activity.RESULT_OK, intent)
     }
 
-    override fun setErrorResult(throwable: Throwable) {
+    override fun setErrorResult(throwable: Throwable, paymentId: Long?) {
         val intent = Intent()
-        intent.putExtra(ERROR_DATA, throwable)
-        setResult(RESULT_ERROR, intent)
+        intent.putExtra(EXTRA_PAYMENT_ID, paymentId)
+        intent.putExtra(ThreeDsHelper.Launch.ERROR_DATA, throwable)
+        setResult(ThreeDsHelper.Launch.RESULT_ERROR, intent)
     }
 
     private fun observeLiveData() {
@@ -162,7 +137,7 @@ internal class ThreeDsActivity : BaseAcquiringActivity() {
     private fun handleScreenState(screenState: ScreenState) {
         when (screenState) {
             is ErrorScreenState -> finishWithError(AcquiringSdkException(IllegalStateException(screenState.message)))
-            is FinishWithErrorScreenState -> finishWithError(screenState.error)
+            is FinishWithErrorScreenState -> finishWithError(screenState.error, screenState.paymentId)
         }
     }
 
@@ -181,7 +156,7 @@ internal class ThreeDsActivity : BaseAcquiringActivity() {
                     "&TermUrl=${URLEncoder.encode(termUrl, "UTF-8")}"
         }
 
-        wvThreeDs.postUrl(url, params.toByteArray())
+        wvThreeDs.postUrl(url!!, params.toByteArray())
     }
 
     private fun prepareCreqParams(): String {
@@ -192,15 +167,8 @@ internal class ThreeDsActivity : BaseAcquiringActivity() {
             put("challengeWindowSize", WINDOW_SIZE_CODE)
             put("messageType", MESSAGE_TYPE)
         }
-        return Base64.encodeToString(creqData.toString().toByteArray(), Base64.DEFAULT).trim()
-    }
-
-    private fun requestState() {
-        if (data.isPayment) {
-            viewModel.requestPaymentState(data.paymentId)
-        } else if (data.isAttaching) {
-            viewModel.requestAddCardState(data.requestKey)
-        }
+        return Base64.encodeToString(creqData.toString().toByteArray(),
+            Base64.NO_PADDING or Base64.NO_WRAP).trim()
     }
 
     private inner class ThreeDsWebViewClient : WebViewClient() {
@@ -222,7 +190,7 @@ internal class ThreeDsActivity : BaseAcquiringActivity() {
             if (termUrl == url) {
                 view.visibility = View.INVISIBLE
                 if (!canceled) {
-                    requestState()
+                    viewModel.requestState(data)
                 }
             }
         }

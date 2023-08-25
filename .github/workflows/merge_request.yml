@@ -1,0 +1,11 @@
+name: merge request
+
+on:
+  pull_request:
+    branches:
+      - 'master'
+      - 'v**'
+
+jobs:
+  check:
+    uses: tinkoff-mobile-tech/workflows/.github/workflows/android_lib.merge_request.yml@v1

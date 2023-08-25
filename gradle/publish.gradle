@@ -15,11 +15,11 @@ def getSnapshotRepositoryUrl() {
 }
 
 def getRepositoryUsername() {
-    return hasProperty('NEXUS_USERNAME') ? NEXUS_USERNAME : ''
+    return hasProperty('ossrhUsername') ? ossrhUsername : ''
 }
 
 def getRepositoryPassword() {
-    return hasProperty('NEXUS_PASSWORD') ? NEXUS_PASSWORD : ''
+    return hasProperty('ossrhPassword') ? ossrhPassword : ''
 }
 
 afterEvaluate {
@@ -71,9 +71,8 @@ afterEvaluate {
         }
     }
 
-    task dokkaJavadoc(type: dokka.getClass()) {
-        outputFormat = 'javadoc'
-        outputDirectory = "$buildDir/dokka"
+    tasks.dokkaJavadoc.configure {
+        outputDirectory = file("$buildDir/dokka")
     }
 
     task javadocJar(type: Jar, dependsOn: dokkaJavadoc) {

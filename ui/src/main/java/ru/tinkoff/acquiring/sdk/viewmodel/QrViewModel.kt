@@ -16,10 +16,10 @@
 
 package ru.tinkoff.acquiring.sdk.viewmodel
 
+import android.app.Application
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import ru.tinkoff.acquiring.sdk.AcquiringSdk
-import ru.tinkoff.acquiring.sdk.localization.AsdkLocalization
 import ru.tinkoff.acquiring.sdk.models.DefaultScreenState
 import ru.tinkoff.acquiring.sdk.models.LoadedState
 import ru.tinkoff.acquiring.sdk.models.LoadingState
@@ -27,9 +27,13 @@ import ru.tinkoff.acquiring.sdk.models.SingleEvent
 import ru.tinkoff.acquiring.sdk.models.enums.DataTypeQr
 import ru.tinkoff.acquiring.sdk.models.enums.ResponseStatus
 import ru.tinkoff.acquiring.sdk.models.options.screen.PaymentOptions
-import ru.tinkoff.acquiring.sdk.requests.InitRequest
+import ru.tinkoff.acquiring.sdk.payment.methods.InitConfigurator.configure
 
-internal class QrViewModel(handleErrorsInSdk: Boolean, sdk: AcquiringSdk) : BaseAcquiringViewModel(handleErrorsInSdk, sdk) {
+internal class QrViewModel(
+    application: Application,
+    handleErrorsInSdk: Boolean,
+    sdk: AcquiringSdk
+) : BaseAcquiringViewModel(application, handleErrorsInSdk, sdk) {
 
     private val qrLinkResult: MutableLiveData<SingleEvent<String?>> = MutableLiveData()
     private val qrImageResult: MutableLiveData<String> = MutableLiveData()
@@ -43,7 +47,7 @@ internal class QrViewModel(handleErrorsInSdk: Boolean, sdk: AcquiringSdk) : Base
         changeScreenState(DefaultScreenState)
         changeScreenState(LoadingState)
 
-        coroutine.call(prepareInitRequest(paymentOptions),
+        coroutine.call(sdk.init { configure(paymentOptions) },
                 onSuccess = {
                     getQr(it.paymentId!!, DataTypeQr.IMAGE)
                 })
@@ -59,7 +63,7 @@ internal class QrViewModel(handleErrorsInSdk: Boolean, sdk: AcquiringSdk) : Base
 
         coroutine.call(request,
                 onSuccess = { response ->
-                    qrImageResult.value = response.data
+                    qrImageResult.value = response.data!!
                     changeScreenState(LoadedState)
                 })
     }
@@ -76,7 +80,7 @@ internal class QrViewModel(handleErrorsInSdk: Boolean, sdk: AcquiringSdk) : Base
     }
 
     fun getDynamicQrLink(paymentOptions: PaymentOptions) {
-        coroutine.call(prepareInitRequest(paymentOptions),
+        coroutine.call(sdk.init { configure(paymentOptions) },
                 onSuccess = {
                     getQr(it.paymentId!!, DataTypeQr.PAYLOAD)
                 })
@@ -92,7 +96,7 @@ internal class QrViewModel(handleErrorsInSdk: Boolean, sdk: AcquiringSdk) : Base
                 onSuccess = {
                     when (type) {
                         DataTypeQr.IMAGE -> {
-                            qrImageResult.value = it.data
+                            qrImageResult.value = it.data!!
                             coroutine.runWithDelay(15000) {
                                 getState(paymentId)
                             }
@@ -111,29 +115,12 @@ internal class QrViewModel(handleErrorsInSdk: Boolean, sdk: AcquiringSdk) : Base
         coroutine.call(request,
                 onSuccess = { response ->
                     if (response.status == ResponseStatus.CONFIRMED || response.status == ResponseStatus.AUTHORIZED) {
-                        paymentResult.value = response.paymentId
+                        paymentResult.value = response.paymentId!!
                     } else {
                         coroutine.runWithDelay(5000) {
                             getState(paymentId)
                         }
                     }
                 })
-    }
-
-    private fun prepareInitRequest(paymentOptions: PaymentOptions): InitRequest {
-        val order = paymentOptions.order
-        return sdk.init {
-            orderId = order.orderId
-            amount = order.amount.coins
-            description = order.description
-            chargeFlag = order.recurrentPayment
-            recurrent = order.recurrentPayment
-            receipt = order.receipt
-            receipts = order.receipts
-            shops = order.shops
-            data = order.additionalData
-            customerKey = paymentOptions.customer.customerKey
-            language = AsdkLocalization.language.name
-        }
     }
 }

@@ -26,6 +26,8 @@ import android.view.View
 import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.annotation.StringRes
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.fragment.app.Fragment
@@ -42,11 +44,18 @@ import ru.tinkoff.acquiring.sdk.models.LoadedState
 import ru.tinkoff.acquiring.sdk.models.LoadingState
 import ru.tinkoff.acquiring.sdk.models.options.screen.BaseAcquiringOptions
 import ru.tinkoff.acquiring.sdk.models.result.AsdkResult
-import ru.tinkoff.acquiring.sdk.models.result.BankChooseResult
 import ru.tinkoff.acquiring.sdk.models.result.CardResult
 import ru.tinkoff.acquiring.sdk.models.result.PaymentResult
-import ru.tinkoff.acquiring.sdk.ui.activities.PaymentActivity.Companion.EXTRA_SBP_BANK_PACKAGE_NAME
+import ru.tinkoff.acquiring.sdk.redesign.common.LauncherConstants.EXTRA_CARD_ID
+import ru.tinkoff.acquiring.sdk.redesign.common.LauncherConstants.EXTRA_CARD_PAN
+import ru.tinkoff.acquiring.sdk.redesign.common.LauncherConstants.EXTRA_ERROR
+import ru.tinkoff.acquiring.sdk.redesign.common.LauncherConstants.EXTRA_PAYMENT_ID
+import ru.tinkoff.acquiring.sdk.redesign.common.LauncherConstants.EXTRA_REBILL_ID
+import ru.tinkoff.acquiring.sdk.redesign.common.LauncherConstants.RESULT_ERROR
+import ru.tinkoff.acquiring.sdk.threeds.ThreeDsSubmitV2Delegate
 import ru.tinkoff.acquiring.sdk.viewmodel.ViewModelProviderFactory
+import ru.tinkoff.acquiring.sdk.viewmodel.YandexPaymentViewModel
+import kotlin.reflect.KClass
 
 /**
  * @author Mariya Chernyadieva
@@ -65,11 +74,13 @@ internal open class BaseAcquiringActivity : AppCompatActivity() {
         const val EXTRA_OPTIONS = "options"
 
         @Throws(AcquiringSdkException::class)
-        fun createIntent(context: Context, options: BaseAcquiringOptions, cls: Class<*>): Intent {
+        fun createIntent(context: Context, options: BaseAcquiringOptions, cls: KClass<*>): Intent {
             options.validateRequiredFields()
 
-            val intent = Intent(context, cls)
-            intent.putExtra(EXTRA_OPTIONS, options)
+            val intent = Intent(context, cls.java)
+            intent.putExtras(Bundle().apply {
+                putParcelable(EXTRA_OPTIONS, options)
+            })
             return intent
         }
     }
@@ -79,7 +90,7 @@ internal open class BaseAcquiringActivity : AppCompatActivity() {
 
         intent.extras?.let { extras ->
             options = extras.getParcelable(EXTRA_OPTIONS)!!
-            sdk = AcquiringSdk(options.terminalKey, options.password, options.publicKey)
+            sdk = AcquiringSdk(options.terminalKey, options.publicKey)
             AsdkLocalization.init(this, options.features.localizationSource)
         }
     }
@@ -126,6 +137,34 @@ internal open class BaseAcquiringActivity : AppCompatActivity() {
         }
     }
 
+    protected fun showErrorDialog(
+        @StringRes title: Int,
+        @StringRes message: Int?,
+        @StringRes buttonText: Int,
+        onButtonClick: (() -> Unit)? = null
+    ) {
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .apply { message?.let { setMessage(it) } }
+            .setPositiveButton(buttonText) { _, _ ->
+                onButtonClick?.invoke()
+            }.show()
+    }
+
+    protected fun showErrorDialog(
+        title: String,
+        message: String?,
+        buttonText: String,
+        onButtonClick: (() -> Unit)? = null
+    ) {
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .apply { message?.let { setMessage(it) } }
+            .setPositiveButton(buttonText) { _, _ ->
+                onButtonClick?.invoke()
+            }.show()
+    }
+
     protected fun hideErrorScreen() {
         val errorView = findViewById<View>(R.id.acq_error_ll_container)
         content = findViewById(R.id.acq_content)
@@ -140,42 +179,50 @@ internal open class BaseAcquiringActivity : AppCompatActivity() {
     }
 
     protected fun provideViewModel(clazz: Class<out ViewModel>): ViewModel {
-        return ViewModelProvider(this, ViewModelProviderFactory(options.features.handleErrorsInSdk, sdk))[clazz]
+        return ViewModelProvider(this, ViewModelProviderFactory(application, options.features.handleErrorsInSdk, sdk))[clazz]
     }
+
+    protected fun provideYandexViewModelFactory()
+    = YandexPaymentViewModel.factory(application, options.features.handleErrorsInSdk, sdk)
+
+    protected fun provideThreeDsSubmitV2Delegate() = ThreeDsSubmitV2Delegate(sdk)
 
     protected open fun setSuccessResult(result: AsdkResult) {
         val intent = Intent()
 
         when (result) {
             is PaymentResult -> {
-                intent.putExtra(TinkoffAcquiring.EXTRA_PAYMENT_ID, result.paymentId)
-                intent.putExtra(TinkoffAcquiring.EXTRA_CARD_ID, result.cardId)
-                intent.putExtra(TinkoffAcquiring.EXTRA_REBILL_ID, result.rebillId)
+                intent.putExtra(EXTRA_PAYMENT_ID, result.paymentId)
+                intent.putExtra(EXTRA_CARD_ID, result.cardId)
+                intent.putExtra(EXTRA_REBILL_ID, result.rebillId)
             }
-            is CardResult -> intent.putExtra(TinkoffAcquiring.EXTRA_CARD_ID, result.cardId)
-            is BankChooseResult -> intent.putExtra(EXTRA_SBP_BANK_PACKAGE_NAME, result.packageName)
+            is CardResult -> {
+                intent.putExtra(EXTRA_CARD_ID, result.cardId)
+                intent.putExtra(EXTRA_CARD_PAN, result.panSuffix)
+            }
         }
 
         setResult(Activity.RESULT_OK, intent)
     }
 
-    protected open fun setErrorResult(throwable: Throwable) {
+    protected open fun setErrorResult(throwable: Throwable, paymentId: Long? = null) {
         val intent = Intent()
-        intent.putExtra(TinkoffAcquiring.EXTRA_ERROR, throwable)
-        setResult(TinkoffAcquiring.RESULT_ERROR, intent)
+        intent.putExtra(EXTRA_ERROR, throwable)
+        intent.putExtra(EXTRA_PAYMENT_ID, paymentId)
+        setResult(RESULT_ERROR, intent)
     }
 
-    protected open fun finishWithSuccess(result: AsdkResult) {
+    open fun finishWithSuccess(result: AsdkResult) {
         setSuccessResult(result)
         finish()
     }
 
-    protected open fun finishWithError(throwable: Throwable) {
-        setErrorResult(throwable)
+    open fun finishWithError(throwable: Throwable, paymentId: Long? = null) {
+        setErrorResult(throwable, paymentId)
         finish()
     }
 
-    protected fun finishWithCancel() {
+    fun finishWithCancel() {
         setResult(Activity.RESULT_CANCELED)
         finish()
     }

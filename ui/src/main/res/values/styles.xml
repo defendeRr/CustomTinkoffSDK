@@ -21,6 +21,8 @@
         <item name="colorPrimaryDark">@color/acq_colorMainDark</item>
         <item name="colorAccent">@color/acq_colorAccent</item>
         <item name="android:textColor">@color/acq_colorText</item>
+        <item name="actionMenuTextColor">@color/acq_colorAccent</item>
+        <item name="android:actionMenuTextAppearance">@style/AcqMenuItem</item>
         <item name="alertDialogTheme">@style/AcquiringDialogStyle</item>
 
         <item name="acqContentLayoutStyle">@style/AcquiringContentLayout</item>
@@ -64,6 +66,23 @@
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowIsFloating">true</item>
         <item name="android:backgroundDimEnabled">false</item>
+    </style>
+
+
+    <style name="AcquiringNewTheme" parent="AcquiringTheme">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowAnimationStyle">@style/AcqWindowAnimationStyle</item>
+        <item name="android:backgroundDimEnabled">true</item>
+    </style>
+
+    <style name="AcqWindowAnimationStyle">
+        <item name="android:windowEnterAnimation">@android:anim/fade_in</item>
+        <item name="android:windowExitAnimation">@android:anim/fade_out</item>
     </style>
 
     <style name="AcquiringNfcTheme" parent="AcquiringTheme">
@@ -127,9 +146,9 @@
 
     <style name="AcquiringEditCardStyle">
         <item name="android:textColorHint">@color/acq_colorHint</item>
-        <item name="textColorInvalid">@color/acq_colorTextInvalid</item>
-        <item name="keyboardBackgroundColor">@color/acq_colorKeyboardBackground</item>
-        <item name="keyboardKeyTextColor">@color/acq_colorKeyText</item>
+        <item name="acqTextColorInvalid">@color/acq_colorTextInvalid</item>
+        <item name="acqKeyboardBackgroundColor">@color/acq_colorKeyboardBackground</item>
+        <item name="acqKeyboardKeyTextColor">@color/acq_colorKeyText</item>
     </style>
 
     <style name="AcquiringTitleTextStyle">
@@ -144,6 +163,11 @@
 
     <style name="AcquiringScreenTitleStyle" parent="AcquiringTitleTextStyle">
         <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="AcquiringStubTitleStyle" parent="AcquiringScreenTitleStyle">
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/acq_colorText</item>
     </style>
 
     <style name="AcquiringOrderTitleStyle" parent="AcquiringTitleTextStyle">
@@ -185,7 +209,7 @@
         <item name="android:layout_marginBottom">@dimen/acq_secure_icons_margin</item>
     </style>
 
-    <style name="AcquiringQrStaticMessage" parent="AcquiringScreenTitleStyle"/>
+    <style name="AcquiringQrStaticMessage" parent="AcquiringScreenTitleStyle" />
 
     <style name="AcquiringScrollingPagerIndicator">
         <item name="spi_dotSize">@dimen/acq_dot_size</item>
@@ -216,4 +240,71 @@
         <item name="android:textColor">?colorAccent</item>
     </style>
 
+    <style name="AcqLoaderButton">
+        <item name="android:minHeight">56dp</item>
+        <item name="android:layout_marginStart">16dp</item>
+        <item name="android:layout_marginEnd">16dp</item>
+    </style>
+
+    <style name="AcqLoaderButton.Primary" parent="AcqLoaderButton">
+        <item name="acq_text_color">@color/acq_button_text_selector</item>
+        <item name="acq_progress_color">@color/acq_colorButtonText</item>
+        <item name="acq_background">@drawable/acq_button_yellow_bg</item>
+    </style>
+
+    <style name="AcqLoaderButton.Secondary" parent="AcqLoaderButton">
+        <item name="acq_text_color">@color/acq_secondary_button_text_selector</item>
+        <item name="acq_progress_color">@color/acq_colorAccent</item>
+        <item name="acq_background">@drawable/acq_button_secondary_bg</item>
+    </style>
+
+    <style name="AcqLoaderButton.Flat" parent="AcqLoaderButton">
+        <item name="acq_text_color">@color/acq_secondary_button_text_selector</item>
+        <item name="acq_progress_color">@color/acq_colorAccent</item>
+        <item name="acq_background">@drawable/acq_button_flat_bg</item>
+    </style>
+
+    <style name="AcqBottomSheetAnim">
+        <item name="android:windowEnterAnimation">@anim/acq_slide_up</item>
+        <item name="android:windowExitAnimation">@anim/acq_slide_down</item>
+    </style>
+
+    <style name="AcqTextInputLayout">
+        <item name="android:minHeight">56dp</item>
+        <item name="android:clipChildren">false</item>
+        <item name="android:clipToPadding">false</item>
+        <item name="acq_til_title_text_size">@dimen/acq_sf_text_size_small</item>
+        <item name="acq_til_title_text_color">@drawable/acq_sf_title_text_selector</item>
+        <item name="acq_til_title_bottom_margin">4dp</item>
+    </style>
+
+    <style name="AcqEditText" parent="Widget.AppCompat.EditText">
+        <item name="colorControlActivated">@color/acq_colorAccent</item>
+        <item name="android:textColor">@drawable/acq_sf_primary_text_selector</item>
+        <item name="android:textSize">@dimen/acq_sf_text_size_default</item>
+        <item name="android:lineSpacingExtra">4dp</item>
+        <item name="android:textColorHint">@drawable/acq_sf_hint_selector</item>
+        <item name="android:background">@null</item>
+        <item name="android:paddingTop">0dp</item>
+        <item name="android:paddingBottom">0dp</item>
+        <item name="android:textCursorDrawable">@drawable/acq_sf_cursor</item>
+    </style>
+
+
+    <style name="AcqMenuItem" parent="@android:style/TextAppearance.Widget.IconMenu.Item">
+        <item name="textAllCaps">false</item>
+        <item name="android:textSize">@dimen/acq_medium_text_size</item>
+    </style>
+
+    <style name="MySnackbar" parent="Widget.MaterialComponents.Snackbar">
+        <item name="android:layout_margin">32dp</item>
+    </style>
+
+    <style name="BottomSheetDialog" parent="ThemeOverlay.MaterialComponents.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/BottomSheetModal</item>
+    </style>
+
+    <style name="BottomSheetModal" parent="Widget.Design.BottomSheet.Modal">
+        <item name="android:background">@android:color/transparent</item>
+    </style>
 </resources>

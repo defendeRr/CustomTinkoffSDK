@@ -39,8 +39,6 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import androidx.annotation.DrawableRes
 import ru.tinkoff.acquiring.sdk.R
-import ru.tinkoff.acquiring.sdk.ui.customview.editcard.CardPaymentSystem.MAESTRO
-import ru.tinkoff.acquiring.sdk.ui.customview.editcard.CardPaymentSystem.UNKNOWN
 import ru.tinkoff.acquiring.sdk.ui.customview.editcard.EditCard.EditCardField.*
 import ru.tinkoff.acquiring.sdk.ui.customview.editcard.EditCard.EditCardMode.*
 import ru.tinkoff.acquiring.sdk.ui.customview.editcard.editable.CardNumberEditable
@@ -196,6 +194,8 @@ internal class EditCard @JvmOverloads constructor(
             invalidate()
         }
 
+    var validateNotExpired: Boolean = false
+
     private var cursorPosition: Int = 0
     private var editableField: EditCardField = CARD_NUMBER
     private var viewState: Int = FULL_CARD_NUMBER_STATE
@@ -282,17 +282,17 @@ internal class EditCard @JvmOverloads constructor(
                 textColor = getColor(R.styleable.EditCard_android_textColor, R.styleable.EditCard_android_textColor)
                 fontFamily = getString(R.styleable.EditCard_android_fontFamily)
                 textColorHint = getColor(R.styleable.EditCard_android_textColorHint, R.styleable.EditCard_android_textColorHint)
-                textColorInvalid = getColor(R.styleable.EditCard_textColorInvalid, Color.RED)
-                cursorColor = getColor(R.styleable.EditCard_cursorColor, typedValue.data)
+                textColorInvalid = getColor(R.styleable.EditCard_acqTextColorInvalid, Color.RED)
+                cursorColor = getColor(R.styleable.EditCard_acqCursorColor, typedValue.data)
 
-                cardNumberHint = getString(R.styleable.EditCard_numberHint) ?: "Card number"
-                cardDateHint = getString(R.styleable.EditCard_dateHint) ?: "MM/YY"
-                cardCvcHint = getString(R.styleable.EditCard_cvcHint) ?: "CVC"
+                cardNumberHint = getString(R.styleable.EditCard_acqNumberHint) ?: "Card number"
+                cardDateHint = getString(R.styleable.EditCard_acqDateHint) ?: "MM/YY"
+                cardCvcHint = getString(R.styleable.EditCard_acqCvcHint) ?: "CVC"
 
-                nextIconResId = getResourceId(R.styleable.EditCard_nextIcon, R.drawable.acq_icon_next)
-                scanIconResId = getResourceId(R.styleable.EditCard_scanIcon, R.drawable.acq_icon_scan_card)
+                nextIconResId = getResourceId(R.styleable.EditCard_acqNextIcon, R.drawable.acq_icon_next)
+                scanIconResId = getResourceId(R.styleable.EditCard_acqScanIcon, R.drawable.acq_icon_scan_card)
 
-                mode = EditCardMode.fromInt(getInteger(R.styleable.EditCard_mode, DEFAULT.value))
+                mode = EditCardMode.fromInt(getInteger(R.styleable.EditCard_acqMode, DEFAULT.value))
             }
         } finally {
             attrsArray.recycle()
@@ -332,7 +332,7 @@ internal class EditCard @JvmOverloads constructor(
         selectionPaint.color = cursorColor
         selectionPaint.alpha = 100
 
-        cardNumberMask = "0".repeat(CardPaymentSystem.getLengthRanges(MAESTRO).max()!!)
+        cardNumberMask = "0".repeat(CardPaymentSystem.UNKNOWN.range.last)
 
         scanButton?.isVisible = isScanButtonVisible
 
@@ -659,8 +659,8 @@ internal class EditCard @JvmOverloads constructor(
     override fun afterTextChanged(editable: Editable?) {
         when (editable) {
             is CardNumberEditable -> {
-                val paymentSystem = CardPaymentSystem.resolvePaymentSystem(cardNumber)
-                if (paymentSystem == UNKNOWN) {
+                val paymentSystem = CardPaymentSystem.resolve(cardNumber)
+                if (!paymentSystem.showLogo) {
                     if (editable.isEmpty()) {
                         post { hideLogoIfNeed() }
                     } else {
@@ -677,8 +677,8 @@ internal class EditCard @JvmOverloads constructor(
                             }
                         }
                         checkFlags(FLAG_CARD_SYSTEM_LOGO) -> {
-                            if (paymentSystem != MAESTRO && isValid(CARD_NUMBER) &&
-                                    mode != NUMBER_ONLY && !checkFlags(FLAG_PASTED_TEXT)) {
+                            if (isValid(CARD_NUMBER) && mode != NUMBER_ONLY && !checkFlags(FLAG_PASTED_TEXT) &&
+                                shouldAutoSwitchFromCardNumber()) {
                                 showDateAndCvc()
                             }
                         }
@@ -919,16 +919,21 @@ internal class EditCard @JvmOverloads constructor(
     private fun isValid(field: EditCardField): Boolean {
         return when (field) {
             CARD_NUMBER -> CardValidator.validateCardNumber(cardNumber) || checkFlags(FLAG_MASKED_NUMBER)
-            EXPIRE_DATE -> CardValidator.validateExpireDate(cardDate)
+            EXPIRE_DATE -> CardValidator.validateExpireDate(cardDate, validateNotExpired)
             SECURE_CODE -> CardValidator.validateSecurityCode(cardCvc)
         }
+    }
+
+    private fun shouldAutoSwitchFromCardNumber(): Boolean {
+        val paymentSystem = CardPaymentSystem.resolve(cardNumber)
+        return cardNumber.length == paymentSystem.range.last
     }
 
     private fun isFilled(field: EditCardField): Boolean {
         return when (field) {
             CARD_NUMBER -> {
-                val paymentSystem = CardPaymentSystem.resolvePaymentSystem(cardNumber)
-                cardNumber.length in CardPaymentSystem.getLengthRanges(paymentSystem)
+                val paymentSystem = CardPaymentSystem.resolve(cardNumber)
+                cardNumber.length in paymentSystem.range
             }
             EXPIRE_DATE -> cardDate.length == CardValidator.MAX_DATE_LENGTH
             SECURE_CODE -> cardCvc.length == CardValidator.MAX_CVC_LENGTH
@@ -951,52 +956,15 @@ internal class EditCard @JvmOverloads constructor(
         val cardFormat = CardFormatter.resolveCardFormat(cardNumber)
         val textWidth = cardNumberPaint.measureText(cardNumber)
         val offset = textWidth / cardNumber.length / 2
-        val blockLength: Int
-        val blockCount: Int
         var blockOffset = cardNumberOffsetLeft
-        var blockWidth: Float
-        var drawedSymbolsCount = 0
-        var numberSelectedBlock = 0
 
-        when (cardFormat) {
-            CardFormatter.DEFAULT_FORMAT -> {
-                blockLength = 4
-                blockCount = cardNumber.length / blockLength
-                numberSelectedBlock = cursorPosition / blockLength
-                for (i in 1..blockCount) {
-                    drawTextCenter(canvas, cardNumberPaint, cardNumber, drawedSymbolsCount, drawedSymbolsCount + blockLength, blockOffset)
-                    blockWidth = cardNumberPaint.measureText(cardNumber, 0, drawedSymbolsCount + blockLength)
-                    blockOffset = blockWidth + offset * i + cardNumberOffsetLeft
-                    drawedSymbolsCount += blockLength
-                }
-
-                if (drawedSymbolsCount != cardNumber.length) {
-                    drawTextCenter(canvas, cardNumberPaint, cardNumber, drawedSymbolsCount, cardNumber.length, blockOffset)
-                }
-            }
-            CardFormatter.MAESTRO_FORMAT -> {
-                blockLength = 8
-                blockCount = cardNumber.length / blockLength
-                numberSelectedBlock = if (blockCount == 0 || cursorPosition < blockLength) 0 else 1
-                if (cardNumber.length >= blockLength) {
-                    drawTextCenter(canvas, cardNumberPaint, cardNumber, drawedSymbolsCount, drawedSymbolsCount + blockLength, blockOffset)
-                    blockWidth = cardNumberPaint.measureText(cardNumber, 0, drawedSymbolsCount + blockLength)
-                    blockOffset = blockWidth + offset + cardNumberOffsetLeft
-                    drawedSymbolsCount += blockLength
-                }
-
-                if (drawedSymbolsCount != cardNumber.length) {
-                    drawTextCenter(canvas, cardNumberPaint, cardNumber, drawedSymbolsCount, cardNumber.length, blockOffset)
-                }
-            }
-            else -> {
-                drawTextCenter(canvas, cardNumberPaint, cardNumber)
-            }
+        cardFormat.forEachBlockUntil(cardNumber.length - 1) { start, end ->
+            drawTextCenter(canvas, cardNumberPaint, cardNumber, start, end, blockOffset)
+            blockOffset += cardNumberPaint.measureText(cardNumber, start, end) + offset
         }
 
-        val offsetCount = if (numberSelectedBlock >= 4) 3 else numberSelectedBlock
         val textWidthToPosition = cardNumberPaint.measureText(cardNumber, 0, cursorPosition)
-        val cursorXPosition = textWidthToPosition + (offset * offsetCount)
+        val cursorXPosition = textWidthToPosition + (offset * cardFormat.getBlockNumber(cursorPosition))
 
         if (!checkFlags(FLAG_MASKED_NUMBER)) {
             drawCursor(canvas, cursorXPosition)
@@ -1113,11 +1081,7 @@ internal class EditCard @JvmOverloads constructor(
                 left = cardNumberOffsetLeft
                 val textWidth = cardNumberPaint.measureText(cardNumber)
                 val offset = textWidth / cardNumber.length / 2
-                val offsetCount = when (CardFormatter.resolveCardFormat(cardNumber)) {
-                    CardFormatter.MAESTRO_FORMAT -> if (cardNumber.length > 8) 1 else 0
-                    CardFormatter.UNKNOWN_FORMAT -> 0
-                    else -> if (cardNumber.length % 4 == 0) (cardNumber.length / 4) - 1 else cardNumber.length / 4
-                }
+                val offsetCount = CardFormatter.resolveCardFormat(cardNumber).getBlockNumber(cardNumber.length - 1)
 
                 right = textWidth + left + offsetCount * offset
             }
@@ -1161,9 +1125,9 @@ internal class EditCard @JvmOverloads constructor(
             startDelay = 200
             addUpdateListener {
                 val updatedValue = it.animatedValue as Int
-                hintPaint.alpha = if (updatedValue < Color.alpha(textColorHint)) updatedValue else Color.alpha(textColorHint)
-                datePaint.alpha = if (updatedValue < Color.alpha(textColor)) updatedValue else Color.alpha(textColor)
-                cvcPaint.alpha = if (updatedValue < Color.alpha(textColor)) updatedValue else Color.alpha(textColor)
+                setHintAlpha(updatedValue)
+                setDateAlpha(updatedValue)
+                setCvcAlpha(updatedValue)
                 invalidate()
             }
         }
@@ -1171,17 +1135,27 @@ internal class EditCard @JvmOverloads constructor(
         AnimatorSet().apply {
             playTogether(cardNumberAlphaAnimator, lastBlockTranslateXAnimator, dateCvcAlphaAnimator)
             addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationStart(animation: Animator?) {
-                    hintPaint.alpha = 0
-                    datePaint.alpha = 0
-                    cvcPaint.alpha = 0
+                override fun onAnimationStart(animation: Animator) {
+                    // Setting starting values of delayed animations
+                    setHintAlpha(0)
+                    setDateAlpha(0)
+                    setCvcAlpha(0)
                     lastNumberBlockPositionXMovable = lastNumberBlockPositionX
+
                     switchEditable(EXPIRE_DATE)
                     setCursor(cardDate.length)
                     switchViewState(CARD_NUMBER_ANIMATION_STATE)
                 }
 
-                override fun onAnimationEnd(animation: Animator?) {
+                override fun onAnimationEnd(animation: Animator) {
+                    // AnimatorSet triggers onAnimationStart callback AFTER the initial tick of inner animations, which
+                    // causes problems when animation scale set to zero on device, hence we manually set target values
+                    // of delayed animations in onAnimationEnd
+                    setHintAlpha(255)
+                    setDateAlpha(255)
+                    setCvcAlpha(255)
+                    lastNumberBlockPositionXMovable = cardNumberOffsetLeft
+
                     if (hasFocus()) {
                         startCursorBlinking()
                     }
@@ -1193,6 +1167,18 @@ internal class EditCard @JvmOverloads constructor(
                 }
             })
         }.start()
+    }
+
+    private fun setHintAlpha(alpha: Int) {
+        hintPaint.alpha = minOf(alpha, Color.alpha(textColorHint))
+    }
+
+    private fun setDateAlpha(alpha: Int) {
+        datePaint.alpha = minOf(alpha, Color.alpha(textColor))
+    }
+
+    private fun setCvcAlpha(alpha: Int) {
+        cvcPaint.alpha = minOf(alpha, Color.alpha(textColor))
     }
 
     private fun showFullCardNumber() {
@@ -1235,7 +1221,7 @@ internal class EditCard @JvmOverloads constructor(
         AnimatorSet().apply {
             playTogether(cardNumberAlphaAnimator, lastBlockTranslateXAnimator, dateCvcAlphaAnimator, hintAlphaAnimator)
             addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationStart(animation: Animator?) {
+                override fun onAnimationStart(animation: Animator) {
                     cardNumberPaint.alpha = 0
                     switchViewState(CARD_NUMBER_ANIMATION_STATE)
                     if (!checkFlags(FLAG_MASKED_NUMBER)) {
@@ -1244,7 +1230,7 @@ internal class EditCard @JvmOverloads constructor(
                     }
                 }
 
-                override fun onAnimationEnd(animation: Animator?) {
+                override fun onAnimationEnd(animation: Animator) {
                     if (hasFocus()) {
                         startCursorBlinking()
                     }
@@ -1285,13 +1271,13 @@ internal class EditCard @JvmOverloads constructor(
         AnimatorSet().apply {
             playSequentially(cardNumberTranslateXAnimator, logoAlphaAnimator)
             addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationStart(animation: Animator?) {
+                override fun onAnimationStart(animation: Animator) {
                     logoPaint.alpha = 0
                     switchViewState(CARD_LOGO_ANIMATION_STATE)
                     addFlags(FLAG_CARD_SYSTEM_LOGO)
                 }
 
-                override fun onAnimationEnd(animation: Animator?) {
+                override fun onAnimationEnd(animation: Animator) {
                     if (hasFocus()) {
                         startCursorBlinking()
                     }
@@ -1331,13 +1317,13 @@ internal class EditCard @JvmOverloads constructor(
         AnimatorSet().apply {
             playSequentially(logoAlphaAnimator, translateXAnimator)
             addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationStart(animation: Animator?) {
+                override fun onAnimationStart(animation: Animator) {
                     logoPaint.alpha = 255
                     switchViewState(CARD_LOGO_ANIMATION_STATE)
                     removeFlag(FLAG_CARD_SYSTEM_LOGO)
                 }
 
-                override fun onAnimationEnd(animation: Animator?) {
+                override fun onAnimationEnd(animation: Animator) {
                     if (hasFocus()) {
                         startCursorBlinking()
                     }
@@ -1367,11 +1353,8 @@ internal class EditCard @JvmOverloads constructor(
                     textWidth = cardNumberPaint.measureText(cardNumber)
                     val halfSymbolWidth = textWidth / cardNumber.length / 2
 
-                    textWidth += when (CardFormatter.resolveCardFormat(cardNumber)) {
-                        CardFormatter.DEFAULT_FORMAT -> halfSymbolWidth * (cardNumber.length / 4)
-                        CardFormatter.MAESTRO_FORMAT -> halfSymbolWidth
-                        else -> 0f
-                    }
+                    textWidth += halfSymbolWidth * CardFormatter.resolveCardFormat(cardNumber)
+                        .getBlockNumber(cardNumber.length - 1)
                     fieldOffset = cardNumberOffsetLeft
                 }
             }
@@ -1411,15 +1394,13 @@ internal class EditCard @JvmOverloads constructor(
     }
 
     private fun calculateLastBlockPosition(): Float {
+        val length = cardNumber.length
+        val lastBlockStart = length - 4
         val textWidth = cardNumberPaint.measureText(cardNumber)
-        val offset = textWidth / cardNumber.length / 2
-        val offsetCount = when (CardFormatter.resolveCardFormat(cardNumber)) {
-            CardFormatter.DEFAULT_FORMAT -> 3
-            CardFormatter.MAESTRO_FORMAT -> 1
-            else -> 0
-        }
+        val offset = textWidth / length / 2
+        val offsetCount = CardFormatter.resolveCardFormat(cardNumber).getBlockNumber(lastBlockStart)
 
-        return cardNumberPaint.measureText(cardNumber, 0, cardNumber.length - 4) + offset * offsetCount + cardNumberOffsetLeft
+        return cardNumberPaint.measureText(cardNumber, 0, lastBlockStart) + offset * offsetCount + cardNumberOffsetLeft
     }
 
     private fun calculateLastBlockArea(): ClosedFloatingPointRange<Float> {
@@ -1439,7 +1420,7 @@ internal class EditCard @JvmOverloads constructor(
     private fun defineCardLogo(): Boolean {
         if (!isInEditMode) {
             val newLogo = cardSystemIconsHolder.getCardSystemLogo(cardNumber)
-            if (newLogo != null && viewState != CARD_LOGO_ANIMATION_STATE) {
+            if (newLogo != null) {
                 cardLogo = newLogo
             }
         }
@@ -1496,15 +1477,15 @@ internal class EditCard @JvmOverloads constructor(
     }
 
     private fun hideLogoIfNeed() {
-        val stillUnknown = CardPaymentSystem.resolvePaymentSystem(cardNumber) == UNKNOWN
-        if (stillUnknown && checkFlags(FLAG_CARD_SYSTEM_LOGO) && viewState != CARD_LOGO_ANIMATION_STATE) {
+        val showLogo = CardPaymentSystem.resolve(cardNumber).showLogo
+        if (!showLogo && checkFlags(FLAG_CARD_SYSTEM_LOGO) && viewState != CARD_LOGO_ANIMATION_STATE) {
             hideCardSystemLogo()
         }
     }
 
     private fun updateCardInputFilter() {
-        val paymentSystem = CardPaymentSystem.resolvePaymentSystem(cardNumber)
-        cardNumberEditable.filters = arrayOf(InputFilter.LengthFilter(CardPaymentSystem.getLengthRanges(paymentSystem).max()!!))
+        val paymentSystem = CardPaymentSystem.resolve(cardNumber)
+        cardNumberEditable.filters = arrayOf(InputFilter.LengthFilter(paymentSystem.range.last))
     }
 
     private fun switchEditable(newEditableField: EditCardField) {

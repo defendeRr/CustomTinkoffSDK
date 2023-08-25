@@ -16,31 +16,48 @@
 
 package ru.tinkoff.acquiring.sdk.requests
 
+import com.google.gson.Gson
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
+import okhttp3.Response
+import ru.tinkoff.acquiring.sdk.AcquiringSdk
+import ru.tinkoff.acquiring.sdk.exceptions.NetworkException
+import ru.tinkoff.acquiring.sdk.network.AcquiringApi
+import ru.tinkoff.acquiring.sdk.network.AcquiringApi.JSON
 import ru.tinkoff.acquiring.sdk.network.NetworkClient
 import ru.tinkoff.acquiring.sdk.responses.AcquiringResponse
-import ru.tinkoff.acquiring.sdk.utils.CryptoUtils
 import ru.tinkoff.acquiring.sdk.utils.Request
+import ru.tinkoff.acquiring.sdk.utils.RequestResult
+import java.io.UnsupportedEncodingException
+import java.net.URLEncoder
 import java.security.PublicKey
-import java.util.*
 
 /**
  * Базовый класс создания запроса Acquiring API
  *
- * @author Mariya Chernyadieva
+ * @author Mariya Chernyadieva, Taras Nagorny
  */
-abstract class AcquiringRequest<R : AcquiringResponse>(internal val apiMethod: String) : Request<R> {
+abstract class AcquiringRequest<R : AcquiringResponse>(internal val apiMethod: String) :
+    Request<R> {
+
+    protected val gson: Gson = NetworkClient.createGson()
+
+    open val httpRequestMethod: String = AcquiringApi.API_REQUEST_METHOD_POST
+    open val contentType: String = AcquiringApi.JSON
 
     internal lateinit var terminalKey: String
-    internal lateinit var password: String
     internal lateinit var publicKey: PublicKey
-    private var token: String? = null
+
     @Volatile
     private var disposed = false
     private val ignoredFieldsSet: HashSet<String> = hashSetOf(DATA, RECEIPT, RECEIPTS, SHOPS)
+    private val headersMap: HashMap<String, String> = hashMapOf()
 
     internal open val tokenIgnoreFields: HashSet<String>
         get() = ignoredFieldsSet
-
 
     protected abstract fun validate()
 
@@ -56,19 +73,60 @@ abstract class AcquiringRequest<R : AcquiringResponse>(internal val apiMethod: S
         val map = HashMap<String, Any>()
 
         map.putIfNotNull(TERMINAL_KEY, terminalKey)
-        map.putIfNotNull(TOKEN, token)
 
         return map
     }
 
-    protected fun <R : AcquiringResponse> performRequest(request: AcquiringRequest<R>,
-                                                         responseClass: Class<R>,
-                                                         onSuccess: (R) -> Unit,
-                                                         onFailure: (Exception) -> Unit) {
+    protected fun <R : AcquiringResponse> performRequest(
+        request: AcquiringRequest<R>,
+        responseClass: Class<R>,
+        onSuccess: (R) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
         request.validate()
-        request.apply { token = makeToken(request) }
         val client = NetworkClient()
         client.call(request, responseClass, onSuccess, onFailure)
+    }
+
+    open fun performRequestAsync(responseClass: Class<R>): Deferred<Result<R>> {
+        this.validate()
+        val client = NetworkClient()
+        val deferred: CompletableDeferred<Result<R>> = CompletableDeferred()
+
+        client.call(this, responseClass,
+            onSuccess = {
+                deferred.complete(Result.success(it))
+            },
+            onFailure = {
+                deferred.complete(Result.failure(it))
+            })
+        return deferred
+    }
+
+    suspend fun performSuspendRequest(responseClass: Class<R>): Result<R> {
+        return performRequestAsync(responseClass).run {
+            start()
+            await()
+        }
+    }
+
+    protected fun <R : AcquiringResponse> performRequestFlow(request: AcquiringRequest<R>,
+                                                             responseClass: Class<R>) : Flow<RequestResult<out R>> {
+        request.validate()
+        val client = NetworkClient()
+        val flow = MutableStateFlow<RequestResult<out R>>(RequestResult.NotYet)
+        client.call(request, responseClass,
+            onSuccess = { flow.tryEmit(RequestResult.Success(it)) },
+            onFailure = { flow.tryEmit(RequestResult.Failure(it)) }
+        )
+        return flow
+    }
+
+    @kotlin.jvm.Throws(NetworkException::class)
+    protected fun <R : AcquiringResponse> performRequestRaw(request: AcquiringRequest<R>): Response {
+        request.validate()
+        val client = NetworkClient()
+        return client.callRaw(request)
     }
 
     protected fun MutableMap<String, Any>.putIfNotNull(key: String, value: Any?) {
@@ -88,33 +146,66 @@ abstract class AcquiringRequest<R : AcquiringResponse>(internal val apiMethod: S
         }
     }
 
-    private fun makeToken(request: AcquiringRequest<R>): String {
-        val parameters = request.asMap()
+    open fun getRequestBody(): String {
+        val params = asMap()
+        if (params.isEmpty()) return ""
 
-        parameters.remove(TOKEN)
-        parameters[PASSWORD_KEY] = password
+        getToken()?.let { params[TOKEN] = it }
 
-        val sortedKeys = ArrayList(parameters.keys)
-        sortedKeys.sort()
+        return when (contentType) {
+            AcquiringApi.FORM_URL_ENCODED -> encodeRequestBody(params)
+            else -> gson.toJson(params)
+        }
+    }
 
+    fun addUserAgentHeader(userAgent: String = System.getProperty("http.agent")) {
+        headersMap.put("User-Agent", userAgent)
+    }
+
+    fun addContentHeader(content: String = JSON) {
+        headersMap.put("Accept", content)
+    }
+
+    protected open fun getToken(): String? =
+        AcquiringSdk.tokenGenerator?.generateToken(this, paramsForToken())
+
+    internal fun getHeaders() = headersMap
+
+    private fun paramsForToken(): MutableMap<String, Any> {
+        val tokenParams = asMap()
+        tokenIgnoreFields.forEach {
+            tokenParams.remove(it)
+        }
+        tokenParams.remove(TOKEN)
+        return tokenParams
+    }
+
+    private fun encodeRequestBody(params: Map<String, Any>): String {
         val builder = StringBuilder()
-        val ignoredKes = request.tokenIgnoreFields
-        for (key in sortedKeys) {
-            if (!ignoredKes.contains(key)) {
-                builder.append(parameters[key])
+        for ((key, value1) in params) {
+            try {
+                val value = URLEncoder.encode(value1.toString(), "UTF-8")
+                builder.append(key)
+                builder.append('=')
+                builder.append(value)
+                builder.append('&')
+            } catch (e: UnsupportedEncodingException) {
+                AcquiringSdk.log(e)
             }
         }
 
-        return CryptoUtils.sha256(builder.toString())
+        builder.setLength(builder.length - 1)
+
+        return builder.toString()
     }
 
     internal companion object {
 
         const val TERMINAL_KEY = "TerminalKey"
-        const val PASSWORD_KEY = "Password"
+        const val PASSWORD = "Password"
+        const val TOKEN = "Token"
         const val PAYMENT_ID = "PaymentId"
         const val SEND_EMAIL = "SendEmail"
-        const val TOKEN = "Token"
         const val EMAIL = "InfoEmail"
         const val CARD_DATA = "CardData"
         const val LANGUAGE = "Language"
@@ -138,9 +229,24 @@ abstract class AcquiringRequest<R : AcquiringResponse>(internal val apiMethod: S
         const val REQUEST_KEY = "RequestKey"
         const val SOURCE = "Source"
         const val PAYMENT_SOURCE = "PaymentSource"
-        const val ANDROID_PAY_TOKEN = "EncryptedPaymentData"
+        const val ENCRYPTED_PAYMENT_DATA = "EncryptedPaymentData"
         const val DATA_TYPE = "DataType"
         const val REDIRECT_DUE_DATE = "RedirectDueDate"
+        const val NOTIFICATION_URL = "NotificationURL"
+        const val SUCCESS_URL = "SuccessURL"
+        const val FAIL_URL = "FailURL"
         const val IP = "IP"
+        const val CONNECTION_TYPE = "connection_type"
+        const val SDK_VERSION = "sdk_version"
+        const val SOFTWARE_VERSION = "software_version"
+        const val DEVICE_MODEL = "device_model"
+        const val THREE_DS_SERVER_TRANS_ID = "threeDSServerTransID"
+        const val TRANS_STATUS = "transStatus"
+        const val CRES = "cres"
+        const val PAYSOURCE = "Paysource"
     }
+}
+
+suspend inline fun <reified R : AcquiringResponse> AcquiringRequest<R>.performSuspendRequest(): Result<R> {
+    return performSuspendRequest(R::class.java)
 }

@@ -26,25 +26,38 @@ import android.view.View
 import android.view.WindowManager
 import androidx.appcompat.widget.Toolbar
 import ru.tinkoff.acquiring.sdk.R
+import ru.tinkoff.acquiring.sdk.exceptions.AcquiringSdkException
 import ru.tinkoff.acquiring.sdk.localization.AsdkLocalization
 import ru.tinkoff.acquiring.sdk.localization.LocalizationResources
+import ru.tinkoff.acquiring.sdk.models.ErrorScreenState
+import ru.tinkoff.acquiring.sdk.models.FinishWithErrorScreenState
 import ru.tinkoff.acquiring.sdk.models.LoadState
 import ru.tinkoff.acquiring.sdk.models.LoadedState
-import ru.tinkoff.acquiring.sdk.models.ThreeDsData
+import ru.tinkoff.acquiring.sdk.models.ScreenState
 import ru.tinkoff.acquiring.sdk.models.result.AsdkResult
+import ru.tinkoff.acquiring.sdk.redesign.common.LauncherConstants.EXTRA_PAYMENT_ID
+import ru.tinkoff.acquiring.sdk.threeds.ThreeDsHelper
+import ru.tinkoff.acquiring.sdk.threeds.ThreeDsStatusCanceled
+import ru.tinkoff.acquiring.sdk.threeds.ThreeDsStatusError
+import ru.tinkoff.acquiring.sdk.threeds.ThreeDsStatusSuccess
 import ru.tinkoff.acquiring.sdk.ui.customview.BottomContainer
+import ru.tinkoff.acquiring.sdk.utils.getAsError
+import ru.tinkoff.acquiring.sdk.utils.getLongOrNull
+import ru.tinkoff.acquiring.sdk.viewmodel.ThreeDsViewModel
 
 /**
  * @author Mariya Chernyadieva
  */
 internal open class TransparentActivity : BaseAcquiringActivity() {
 
-    protected lateinit var bottomContainer: BottomContainer
+    protected var bottomContainer: BottomContainer? = null
 
     private lateinit var localization: LocalizationResources
     private var showBottomView = true
     private var orientation: Int = 0
     private var viewType: Int = 0
+
+    lateinit var threeDsViewModel: ThreeDsViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,21 +68,56 @@ internal open class TransparentActivity : BaseAcquiringActivity() {
         savedInstanceState?.let {
             showBottomView = it.getBoolean(STATE_SHOW_BOTTOM)
         }
+
+        initThreeDs()
+    }
+
+    private fun initThreeDs() {
+        threeDsViewModel = provideViewModel(ThreeDsViewModel::class.java) as ThreeDsViewModel
+        threeDsViewModel.run {
+            loadStateLiveData.observe(this@TransparentActivity) { handleLoadState(it) }
+            screenStateLiveData.observe(this@TransparentActivity) { handleThreeDsScreenState(it) }
+            resultLiveData.observe(this@TransparentActivity) { finishWithSuccess(it) }
+        }
+    }
+
+    private fun handleThreeDsScreenState(screenState: ScreenState) {
+        when (screenState) {
+            is ErrorScreenState -> finishWithError(AcquiringSdkException(IllegalStateException(screenState.message)))
+            is FinishWithErrorScreenState -> finishWithError(screenState.error)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+
+        ThreeDsHelper.checkoutTransactionStatus { status ->
+            when (status) {
+                is ThreeDsStatusSuccess -> threeDsViewModel.submitAuthorization(status.threeDsData, status.transStatus)
+                is ThreeDsStatusCanceled -> finishWithCancel()
+                is ThreeDsStatusError -> finishWithError(status.error)
+                else -> Unit
+            }
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (requestCode == THREE_DS_REQUEST_CODE) {
             if (resultCode == Activity.RESULT_OK && data != null) {
-                finishWithSuccess(data.getSerializableExtra(ThreeDsActivity.RESULT_DATA) as AsdkResult)
-            } else if (resultCode == ThreeDsActivity.RESULT_ERROR) {
-                finishWithError(data?.getSerializableExtra(ThreeDsActivity.ERROR_DATA) as Throwable)
+                finishWithSuccess(data.getSerializableExtra(ThreeDsHelper.Launch.RESULT_DATA) as AsdkResult)
+            } else if (resultCode == ThreeDsHelper.Launch.RESULT_ERROR) {
+                checkNotNull(data)
+                finishWithError(
+                    data.getAsError(ThreeDsHelper.Launch.ERROR_DATA),
+                    data.getLongOrNull(EXTRA_PAYMENT_ID)
+                )
             } else {
                 setResult(Activity.RESULT_CANCELED)
                 closeActivity()
             }
         } else {
             supportFragmentManager
-                    .findFragmentById(R.id.acq_activity_fl_container)?.onActivityResult(requestCode, resultCode, data)
+                .findFragmentById(R.id.acq_activity_fl_container)?.onActivityResult(requestCode, resultCode, data)
         }
         super.onActivityResult(requestCode, resultCode, data)
     }
@@ -85,7 +133,7 @@ internal open class TransparentActivity : BaseAcquiringActivity() {
     }
 
     override fun onBackPressed() {
-        if (bottomContainer.isEnabled) {
+        if (bottomContainer?.isEnabled == true) {
             closeActivity()
         }
     }
@@ -95,14 +143,14 @@ internal open class TransparentActivity : BaseAcquiringActivity() {
         closeActivity()
     }
 
-    override fun finishWithError(throwable: Throwable) {
-        setErrorResult(throwable)
+    override fun finishWithError(throwable: Throwable, paymentId: Long?) {
+        setErrorResult(throwable, paymentId)
         closeActivity()
     }
 
     override fun handleLoadState(loadState: LoadState) {
         super.handleLoadState(loadState)
-        bottomContainer.isEnabled = loadState is LoadedState
+        bottomContainer?.isEnabled = loadState is LoadedState
     }
 
     protected fun initViews(fullScreenMode: Boolean = false) {
@@ -124,7 +172,7 @@ internal open class TransparentActivity : BaseAcquiringActivity() {
         setContentView(R.layout.acq_activity)
 
         bottomContainer = findViewById(R.id.acq_activity_bottom_container)
-        bottomContainer.setContainerStateListener(object : BottomContainer.ContainerStateListener {
+        bottomContainer?.setContainerStateListener(object : BottomContainer.ContainerStateListener {
             override fun onHidden() {
                 finish()
                 overridePendingTransition(0, 0)
@@ -140,7 +188,7 @@ internal open class TransparentActivity : BaseAcquiringActivity() {
         showBottomView = showBottomView && (viewType == EXPANDED_INDEX && !fullScreenMode) && orientation == Configuration.ORIENTATION_PORTRAIT
 
         if (orientation == Configuration.ORIENTATION_PORTRAIT) {
-            when  {
+            when {
                 viewType == EXPANDED_INDEX && !fullScreenMode -> {
                     window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                     setupTranslucentStatusBar()
@@ -149,17 +197,12 @@ internal open class TransparentActivity : BaseAcquiringActivity() {
             }
         }
 
-        bottomContainer.containerState = if ((viewType == EXPANDED_INDEX && !fullScreenMode) && orientation == Configuration.ORIENTATION_PORTRAIT) {
+        bottomContainer?.containerState = if ((viewType == EXPANDED_INDEX && !fullScreenMode) && orientation == Configuration.ORIENTATION_PORTRAIT) {
             BottomContainer.STATE_SHOWED
         } else {
             BottomContainer.STATE_FULLSCREEN
         }
-        bottomContainer.showInitAnimation = showBottomView
-    }
-
-    protected fun openThreeDs(data: ThreeDsData) {
-        val intent = ThreeDsActivity.createIntent(this, options, data)
-        startActivityForResult(intent, THREE_DS_REQUEST_CODE)
+        bottomContainer?.showInitAnimation = showBottomView
     }
 
     private fun setupTranslucentStatusBar() {
@@ -180,8 +223,8 @@ internal open class TransparentActivity : BaseAcquiringActivity() {
     }
 
     private fun closeActivity() {
-        if (viewType == EXPANDED_INDEX && bottomContainer.containerState != BottomContainer.STATE_FULLSCREEN) {
-            bottomContainer.hide()
+        if (viewType == EXPANDED_INDEX && bottomContainer?.containerState != BottomContainer.STATE_FULLSCREEN) {
+            bottomContainer?.hide()
         } else {
             finish()
         }
@@ -191,7 +234,7 @@ internal open class TransparentActivity : BaseAcquiringActivity() {
         private const val FULL_SCREEN_INDEX = 0
         private const val EXPANDED_INDEX = 1
 
-        private const val THREE_DS_REQUEST_CODE = 143
+        internal const val THREE_DS_REQUEST_CODE = 143
 
         private const val STATE_SHOW_BOTTOM = "state_show_bottom"
     }

@@ -24,7 +24,7 @@ import java.util.regex.Pattern
  */
 internal object CardValidator {
 
-    private val allowedLengths = intArrayOf(13, 14, 15, 16, 17, 18, 19)
+    private val allowedLengths = 13..28
     private const val ZERO_NUMBERS_CARD_NUMBER_REGEXP = "[0]{1,}"
     private const val CVC_REGEXP = "^[0-9]{3}$"
 
@@ -69,8 +69,12 @@ internal object CardValidator {
         } catch (e: NumberFormatException) {
             return false
         }
-
         if (month in 1..12) {
+            return true
+        }
+
+        // disable expiration validation
+        /*if (month in 1..12) {
             val c = Calendar.getInstance()
             val currentYearStr = c.get(Calendar.YEAR).toString().substring(2)
             val currentMonth = c.get(Calendar.MONTH) + 1
@@ -81,7 +85,7 @@ internal object CardValidator {
             if (year > currentYear && year <= currentYear + 20) {
                 return true
             }
-        }
+        }*/
 
         return false
     }

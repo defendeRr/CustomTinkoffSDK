@@ -34,8 +34,8 @@ internal object CardValidator {
             return false
         }
 
-        val cardType = CardPaymentSystem.resolvePaymentSystem(cardNumber)
-        val allowedLengths = CardPaymentSystem.getLengthRanges(cardType)
+        val cardType = CardPaymentSystem.resolve(cardNumber)
+        val allowedLengths = cardType.range
         var lengthAllowed = false
 
         for (allowedLength in allowedLengths) {
@@ -47,7 +47,7 @@ internal object CardValidator {
         return lengthAllowed && validateWithLuhnAlgorithm(cardNumber)
     }
 
-    fun validateExpireDate(expiryDate: String): Boolean {
+    fun validateExpireDate(expiryDate: String, validateNotExpired: Boolean): Boolean {
         if (expiryDate.isEmpty() || expiryDate.isBlank() || expiryDate.length != MAX_DATE_LENGTH) {
             return false
         }
@@ -63,6 +63,8 @@ internal object CardValidator {
         }
 
         if (month in 1..12) {
+            if (!validateNotExpired) return true
+
             val c = Calendar.getInstance()
             val currentYearStr = c.get(Calendar.YEAR).toString().substring(2)
             val currentMonth = c.get(Calendar.MONTH) + 1
@@ -85,6 +87,11 @@ internal object CardValidator {
                 cvc,
                 CVC_CODE_REGEXP
         )
+    }
+
+    fun validateSecurityCodeOrFalse(cvc: String?): Boolean {
+        cvc ?: return false
+        return validateSecurityCode(cvc)
     }
 
     //http://en.wikipedia.org/wiki/Luhn_algorithm

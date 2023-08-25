@@ -20,7 +20,10 @@
     <string name="activity_title_details">Book</string>
     <string name="activity_title_cart">Cart</string>
     <string name="activity_title_attach_card">Attach card</string>
+    <string name="activity_title_attach_card_manually">Attach card manually</string>
+    <string name="activity_title_terminals">Terminals</string>
     <string name="activity_title_about">About</string>
+    <string name="activity_title_env">Environment</string>
     <string name="activity_title_static_qr">Open static QR code</string>
     <string name="activity_title_dynamic_qr">Get QR payment</string>
     <string name="activity_title_settings">Settings</string>
@@ -28,6 +31,7 @@
     <string name="activity_title_saved_cards">Saved cards</string>
     <string name="activity_title_send_notification">Send notification</string>
     <string name="activity_title_book_subscription">Book Subscription</string>
+    <string name="activity_title_environment">Environment</string>
 
     <string name="author">Author</string>
     <string name="year">Year</string>
@@ -46,6 +50,7 @@
     <string name="version">Tinkoff Acquiring SDK v%1$s(%2$d)</string>
     <string name="pay_with">Pay with</string>
     <string name="buy_with_card">Pay with card</string>
+    <string name="buy_with_recurrent">Init recurrent</string>
     <string name="total_sum">Total:</string>
 
     <string name="payment_failed">Payment failed. Try later.</string>
@@ -60,15 +65,17 @@
     <string name="cart_list_item_count_format">"%1$d Qty "</string>
 
     <string name="settings_title_use_system_keyboard">Use system keyboard</string>
+    <string name="settings_title_validate_expiry_date">Validate expiry date</string>
     <string name="settings_title_recurrent_payment">Recurrent payment</string>
     <string name="settings_title_handle_cards_list_error">Handle cards list error in SDK</string>
-    <string name="settings_title_google_pay">GooglePay</string>
     <string name="settings_title_fps">Fast payment system</string>
-    <string name="settings_title_terminal_id">Terminal</string>
+    <string name="settings_title_tinkoff_pay">Tinkoff Pay</string>
+    <string name="settings_title_yandex_pay">Yandex Pay</string>
     <string name="settings_title_style_id">Style</string>
     <string name="settings_title_dark_mode_id">Dark Mode</string>
     <string name="settings_title_check_type_id">CheckType</string>
     <string name="settings_title_camera">Camera module</string>
+    <string name="settings_title_combi_init">Combi - Init</string>
 
     <string name="attachment_failed">Attachment failed. Try later.</string>
     <string name="attachment_cancelled">Attachment canceled</string>
@@ -78,4 +85,5 @@
     <string name="notification_channel_name">Payment notifications</string>
     <string name="notification_order_title_subscription_renewal">Subscription renewal</string>
     <string name="notification_payment_success">Subscription renewed successfully!</string>
+    <string name="bank_list">Bank list</string>
 </resources>

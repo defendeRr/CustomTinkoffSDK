@@ -16,7 +16,10 @@
 
 package ru.tinkoff.acquiring.sdk.models
 
+import ru.tinkoff.acquiring.sdk.AcquiringSdk
 import ru.tinkoff.acquiring.sdk.responses.Check3dsVersionResponse
+import ru.tinkoff.acquiring.sdk.responses.NspkC2bResponse
+import ru.tinkoff.acquiring.sdk.threeds.ThreeDsAppBasedTransaction
 import java.io.Serializable
 
 /**
@@ -53,17 +56,27 @@ object FpsState : AsdkState()
  * Состояние проверки 3DS. На экране пользователю будет предложено пройти подтверждение платежа
  * по технологии 3D-Secure
  */
-class ThreeDsState(val data: ThreeDsData) : AsdkState()
-
-/**
- * Состояние, когда необходимо собрать информацию об устройстве для прохождения 3DS
- */
-class CollectDataState(val response: Check3dsVersionResponse?) : AsdkState() {
-    var data: MutableMap<String, String> = mutableMapOf()
-}
+class ThreeDsState(val data: ThreeDsData, val transaction: ThreeDsAppBasedTransaction?) : AsdkState()
 
 /**
  * Состояние открытия приложения (или выбора приложения), зарегистрированного для обработки ссылки
  * Системы быстрых платежей, в котором произойдет оплата
  */
-class BrowseFpsBankState(val paymentId: Long, val deepLink: String, val banks: Set<Any?>?) : AsdkState()
+class BrowseFpsBankState(val paymentId: Long, val deepLink: String, val banksInfo: List<NspkC2bResponse.NspkAppInfo>?) : AsdkState()
+
+/**
+ * Состояние открытия приложения, зарегистрированного для обработки ссылки Tinkoff Pay.
+ *
+ * @param paymentId идентификатор платежа, который можно использовать для запроса статуса платежа с помощью
+ * [AcquiringSdk.getState]
+ * @param deepLink диплинк ведущий на форму оплаты, используется для открытия приложения банка
+ */
+class OpenTinkoffPayBankState(val paymentId: Long, val deepLink: String) : AsdkState()
+
+
+/**
+ * Состояние открытия приложения, при котором пользователь совершает платеж с помощью яндекс токена
+ *
+ * @param yandexToken плажетные данные полученные из яндекса
+ */
+class YandexPayState(val yandexToken: String, val paymentId: Long?) : AsdkState()

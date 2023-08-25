@@ -22,14 +22,16 @@ import ru.tinkoff.acquiring.sdk.models.enums.ResponseStatus
 /**
  * Ответ на запрос Init
  *
- * @param amount    сумма списания в копейках
- * @param orderId   номер заказа в системе продавца
- * @param paymentId уникальный идентификатор транзакции в системе банка
- * @param status    статус транзакции
+ * @param amount        сумма списания в копейках
+ * @param orderId       номер заказа в системе продавца
+ * @param paymentId     уникальный идентификатор транзакции в системе банка
+ * @param status        статус транзакции
+ * @param paymentURL    ссылка на платежную форму
  *
- * @author Mariya Chernyadieva
+ * @author Mariya Chernyadieva, Taras Nagorny
  */
 class InitResponse(
+
         @SerializedName("Amount")
         val amount: Long? = null,
 
@@ -40,6 +42,9 @@ class InitResponse(
         val paymentId: Long? = null,
 
         @SerializedName("Status")
-        val status: ResponseStatus? = null
+        val status: ResponseStatus? = null,
+
+        @SerializedName("PaymentURL")
+        val paymentURL: String? = null
 
 ) : AcquiringResponse()

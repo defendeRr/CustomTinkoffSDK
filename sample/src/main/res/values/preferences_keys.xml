@@ -18,10 +18,13 @@
 <resources>
 
     <string name="acq_sp_use_system_keyboard" translatable="false">acq_sp_use_system_keyboard</string>
+    <string name="acq_sp_validate_expiry_date" translatable="false">acq_sp_validate_expiry_date</string>
     <string name="acq_sp_recurrent_payment" translatable="false">acq_sp_recurrent_payment</string>
-    <string name="acq_sp_terminal_id" translatable="false">acq_sp_terminal_id</string>
     <string name="acq_sp_android_pay" translatable="false">acq_sp_android_pay</string>
+    <string name="acq_sp_yandex_pay" translatable="false">acq_sp_yandex_pay</string>
+    <string name="acq_sp_combi_init" translatable="false">acq_sp_combi_init</string>
     <string name="acq_sp_fps" translatable="false">acq_sp_fps</string>
+    <string name="acq_sp_tinkoff_pay" translatable="false">acq_sp_tinkoff_pay</string>
     <string name="acq_sp_handle_cards_error" translatable="false">acq_sp_handle_cards_error</string>
 
     <string name="acq_sp_style_id" translatable="false">acq_sp_style_id</string>
@@ -58,4 +61,5 @@
         <item>TEST-DEMO</item>
     </string-array>
 
+    <string name="acq_sp_custom_url" translatable="false">acq_sp_custom_url</string>
 </resources>

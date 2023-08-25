@@ -26,27 +26,9 @@ import javax.crypto.IllegalBlockSizeException
 import javax.crypto.NoSuchPaddingException
 
 /**
- * @author Mariya Chernyadieva
+ * @author Mariya Chernyadieva, Taras Nagorny
  */
 internal object CryptoUtils {
-
-    fun sha256(string: String): String {
-        try {
-            val digest = MessageDigest.getInstance("SHA-256")
-            val hash = digest.digest(string.toByteArray(charset("UTF-8")))
-            val hexString = StringBuffer()
-
-            for (i in hash.indices) {
-                val hex = Integer.toHexString(0xff and hash[i].toInt())
-                if (hex.length == 1) hexString.append('0')
-                hexString.append(hex)
-            }
-
-            return hexString.toString()
-        } catch (ex: Exception) {
-            throw RuntimeException(ex)
-        }
-    }
 
     fun encryptRsa(string: String, publicKey: PublicKey): ByteArray {
         try {
@@ -68,5 +50,16 @@ internal object CryptoUtils {
 
     fun encodeBase64(value: ByteArray): String {
         return Base64.encodeToString(value, Base64.DEFAULT).trim()
+    }
+
+    fun String.sha256(): String {
+        return hashString(this)
+    }
+
+    private fun hashString(input: String): String {
+        return MessageDigest
+            .getInstance("SHA-256")
+            .digest(input.toByteArray())
+            .fold("") { str, it -> str + "%02x".format(it) }
     }
 }

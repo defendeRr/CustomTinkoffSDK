@@ -22,12 +22,11 @@ import ru.tinkoff.acquiring.sdk.network.AcquiringApi.INIT_METHOD
 import ru.tinkoff.acquiring.sdk.responses.InitResponse
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.collections.HashMap
 
 /**
  * Инициирует новый платеж
  *
- * @author Mariya Chernyadieva
+ * @author Mariya Chernyadieva, Taras Nagorny
  */
 class InitRequest : AcquiringRequest<InitResponse>(INIT_METHOD) {
 
@@ -119,6 +118,27 @@ class InitRequest : AcquiringRequest<InitResponse>(INIT_METHOD) {
             }
         }
 
+    /**
+     * Адрес для получения http нотификаций
+     */
+    var notificationURL: String? = null
+
+    /**
+     * Страница успеха
+     */
+    var successURL: String? = null
+
+    /**
+     * Страница ошибки
+     */
+    var failURL: String? = null
+
+    var sdkVersion: String? = null
+
+    var softwareVersion: String? = null
+
+    var deviceModel: String? = null
+
     private var redirectDueDateFormat: String? = null
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.getDefault())
 
@@ -137,6 +157,9 @@ class InitRequest : AcquiringRequest<InitResponse>(INIT_METHOD) {
         map.putIfNotNull(RECEIPTS, receipts)
         map.putIfNotNull(SHOPS, shops)
         map.putIfNotNull(REDIRECT_DUE_DATE, redirectDueDateFormat)
+        map.putIfNotNull(NOTIFICATION_URL, notificationURL)
+        map.putIfNotNull(SUCCESS_URL, successURL)
+        map.putIfNotNull(FAIL_URL, failURL)
         map.putDataIfNonNull(data)
 
         return map
@@ -166,10 +189,15 @@ class InitRequest : AcquiringRequest<InitResponse>(INIT_METHOD) {
         }
 
         dataMap[CHARGE_FLAG] = chargeFlag.toString()
+        dataMap[CONNECTION_TYPE] = CONNECTION_TYPE_MOBILE_SDK
+        sdkVersion?.let { dataMap[SDK_VERSION] = it }
+        softwareVersion?.let { dataMap[SOFTWARE_VERSION] = it }
+        deviceModel?.let { dataMap[DEVICE_MODEL] = it }
         this[DATA] = dataMap
     }
 
     companion object {
         private const val RECURRENT_FLAG_Y = "Y"
+        private const val CONNECTION_TYPE_MOBILE_SDK = "mobile_sdk"
     }
 }

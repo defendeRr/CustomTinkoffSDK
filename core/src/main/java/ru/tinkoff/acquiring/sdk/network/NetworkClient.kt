@@ -19,6 +19,11 @@ package ru.tinkoff.acquiring.sdk.network
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonParseException
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import ru.tinkoff.acquiring.sdk.AcquiringSdk
 import ru.tinkoff.acquiring.sdk.exceptions.AcquiringApiException
 import ru.tinkoff.acquiring.sdk.exceptions.NetworkException
@@ -26,71 +31,53 @@ import ru.tinkoff.acquiring.sdk.models.enums.CardStatus
 import ru.tinkoff.acquiring.sdk.models.enums.ResponseStatus
 import ru.tinkoff.acquiring.sdk.models.enums.Tax
 import ru.tinkoff.acquiring.sdk.models.enums.Taxation
-import ru.tinkoff.acquiring.sdk.network.AcquiringApi.API_REQUEST_METHOD_POST
-import ru.tinkoff.acquiring.sdk.network.AcquiringApi.FORM_URL_ENCODED
 import ru.tinkoff.acquiring.sdk.network.AcquiringApi.JSON
-import ru.tinkoff.acquiring.sdk.network.AcquiringApi.STREAM_BUFFER_SIZE
 import ru.tinkoff.acquiring.sdk.network.AcquiringApi.TIMEOUT
 import ru.tinkoff.acquiring.sdk.requests.AcquiringRequest
 import ru.tinkoff.acquiring.sdk.requests.FinishAuthorizeRequest
 import ru.tinkoff.acquiring.sdk.responses.AcquiringResponse
 import ru.tinkoff.acquiring.sdk.responses.GetCardListResponse
-import ru.tinkoff.acquiring.sdk.utils.serialization.CardStatusSerializer
-import ru.tinkoff.acquiring.sdk.utils.serialization.CardsListDeserializer
-import ru.tinkoff.acquiring.sdk.utils.serialization.PaymentStatusSerializer
-import ru.tinkoff.acquiring.sdk.utils.serialization.SerializableExclusionStrategy
-import ru.tinkoff.acquiring.sdk.utils.serialization.TaxSerializer
-import ru.tinkoff.acquiring.sdk.utils.serialization.TaxationSerializer
-import java.io.Closeable
-import java.io.IOException
-import java.io.InputStreamReader
-import java.io.OutputStream
-import java.io.UnsupportedEncodingException
+import ru.tinkoff.acquiring.sdk.utils.serialization.*
+import java.io.*
 import java.lang.reflect.Modifier
-import java.net.HttpURLConnection
 import java.net.HttpURLConnection.HTTP_OK
 import java.net.MalformedURLException
 import java.net.URL
-import java.net.URLEncoder
+import java.util.concurrent.TimeUnit
 
 /**
- * @author Mariya Chernyadieva
+ * @author Mariya Chernyadieva, Taras Nagorny
  */
 internal class NetworkClient {
 
+    private val okHttpClient = OkHttpClient.Builder()
+        .connectTimeout(TIMEOUT, TimeUnit.MILLISECONDS)
+        .readTimeout(TIMEOUT, TimeUnit.MILLISECONDS)
+        .build()
+
     private val gson: Gson = createGson()
 
-    internal fun <R : AcquiringResponse> call(request: AcquiringRequest<R>,
-                                              responseClass: Class<R>,
-                                              onSuccess: (R) -> Unit,
-                                              onFailure: (Exception) -> Unit) {
-
-        val result: R
+    internal fun <R : AcquiringResponse> call(
+        request: AcquiringRequest<R>,
+        responseClass: Class<R>,
+        onSuccess: (R) -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
         var response: String? = null
-        var responseReader: InputStreamReader? = null
-        var requestContentStream: OutputStream? = null
 
         try {
-            lateinit var connection: HttpURLConnection
+            val httpRequest = request.httpRequest()
+            val call = okHttpClient.newCall(httpRequest)
+            val httpResponse = call.execute()
 
-            prepareBody(request) { body ->
-                prepareConnection(request) {
-                    connection = it
-                    connection.setRequestProperty("Content-length", body.size.toString())
-                    requestContentStream = connection.outputStream
-                    requestContentStream?.write(body)
+            AcquiringSdk.log("=== Sending ${httpRequest.method} request to ${httpRequest.url}")
 
-                    AcquiringSdk.log("=== Sending $API_REQUEST_METHOD_POST request to ${connection.url}")
-                }
-            }
-
-            val responseCode = connection.responseCode
+            val responseCode = httpResponse.code
+            response = httpResponse.body?.string()
 
             if (responseCode == HTTP_OK) {
-                responseReader = InputStreamReader(connection.inputStream)
-                response = read(responseReader)
                 AcquiringSdk.log("=== Got server response: $response")
-                result = gson.fromJson(response, responseClass)
+                val result = gson.fromJson(response, responseClass)
 
                 checkResult(result) { isSuccess ->
                     if (!request.isDisposed()) {
@@ -99,15 +86,18 @@ internal class NetworkClient {
                             onSuccess(result)
                         } else {
                             AcquiringSdk.log("=== Request done with fail")
-                            onFailure(AcquiringApiException(result, "${result.message ?: ""} ${result.details ?: ""}"))
+                            onFailure(
+                                AcquiringApiException(
+                                    result,
+                                    makeNetworkErrorMessage(result.message, result.details)
+                                )
+                            )
                         }
                     }
                 }
 
             } else {
-                responseReader = InputStreamReader(connection.errorStream)
-                response = read(responseReader)
-                if (response.isNotEmpty()) {
+                if (!response.isNullOrEmpty()) {
                     AcquiringSdk.log("=== Got server error response: $response")
                 } else {
                     AcquiringSdk.log("=== Got server error response code: $responseCode")
@@ -119,46 +109,60 @@ internal class NetworkClient {
 
         } catch (e: IOException) {
             if (!request.isDisposed()) {
-                onFailure(NetworkException("Unable to performRequest request ${request.apiMethod}", e))
+                onFailure(
+                    NetworkException(
+                        "Unable to performRequest request ${request.apiMethod}",
+                        e
+                    )
+                )
             }
         } catch (e: JsonParseException) {
             if (!request.isDisposed()) {
                 onFailure(AcquiringApiException("Invalid response. $response", e))
             }
-        } finally {
-            closeQuietly(responseReader)
-            closeQuietly(requestContentStream)
         }
     }
 
-    private fun <R : AcquiringResponse> prepareConnection(request: AcquiringRequest<R>, onReady: (HttpURLConnection) -> Unit) {
-        val targetUrl = prepareURL(request.apiMethod)
-        val connection = targetUrl.openConnection() as HttpURLConnection
+    internal fun <R : AcquiringResponse> callRaw(
+        request: AcquiringRequest<R>
+    ): Response {
+        return try {
+            val httpRequest = request.httpRequest()
+            val call = okHttpClient.newCall(httpRequest)
+            AcquiringSdk.log("=== Sending ${httpRequest.method} request to ${httpRequest.url}")
+            call.execute()
+        } catch (e: IOException) {
+            AcquiringSdk.log("=== Receive error ${e.message} on method ${request.httpRequestMethod} ${request.apiMethod}")
+            throw NetworkException("Unable to performRequest request ${request.apiMethod}", e)
+        }
+    }
 
-        with(connection) {
-            requestMethod = API_REQUEST_METHOD_POST
-            connectTimeout = TIMEOUT
-            readTimeout = TIMEOUT
-            doOutput = true
-            setRequestProperty("Content-type", if (AcquiringApi.useV1Api(request.apiMethod)) FORM_URL_ENCODED else JSON)
-
-            if (request is FinishAuthorizeRequest && request.is3DsVersionV2()) {
-                setRequestProperty("User-Agent", System.getProperty("http.agent"))
-                setRequestProperty("Accept", JSON)
+    private fun AcquiringRequest<*>.httpRequest() = Request.Builder().also { builder ->
+        builder.url(prepareURL(apiMethod))
+        when (httpRequestMethod) {
+            AcquiringApi.API_REQUEST_METHOD_GET -> builder.get()
+            AcquiringApi.API_REQUEST_METHOD_POST -> {
+                val body = getRequestBody()
+                AcquiringSdk.log("=== Parameters: $body")
+                builder.post(body.toRequestBody(contentType.toMediaType()))
             }
         }
 
-        onReady(connection)
-    }
+        if (this is FinishAuthorizeRequest && is3DsVersionV2()) {
+            builder.header("User-Agent", System.getProperty("http.agent"))
+            builder.header("Accept", JSON)
+        }
 
-    private fun <R : AcquiringResponse> prepareBody(request: AcquiringRequest<R>, onReady: (ByteArray) -> Unit) {
-        val requestBody = formatRequestBody(request.asMap(), request.apiMethod)
-        AcquiringSdk.log("=== Parameters: $requestBody")
+        getHeaders().forEach { (key, value) ->
+            builder.header(key, value)
+        }
 
-        onReady(requestBody.toByteArray())
-    }
+    }.build()
 
-    private fun <R : AcquiringResponse> checkResult(result: R, onChecked: (isSuccess: Boolean) -> Unit) {
+    private fun <R : AcquiringResponse> checkResult(
+        result: R,
+        onChecked: (isSuccess: Boolean) -> Unit
+    ) {
         if (result.errorCode == AcquiringApi.API_ERROR_CODE_NO_ERROR && result.isSuccess!!) {
             onChecked(true)
         } else {
@@ -168,9 +172,9 @@ internal class NetworkClient {
 
     @Throws(MalformedURLException::class)
     private fun prepareURL(apiMethod: String?): URL {
-        if (apiMethod == null || apiMethod.isEmpty()) {
+        if (apiMethod.isNullOrEmpty()) {
             throw IllegalArgumentException(
-                    "Cannot prepare URL for request api method is empty or null!"
+                "Cannot prepare URL for request api method is empty or null!"
             )
         }
 
@@ -181,67 +185,15 @@ internal class NetworkClient {
         return URL(builder.toString())
     }
 
-    private fun formatRequestBody(params: Map<String, Any>?, apiMethod: String): String {
-        if (params == null || params.isEmpty()) {
-            return ""
-        }
-        return if (AcquiringApi.useV1Api(apiMethod)) {
-            encodeRequestBody(params)
-        } else {
-            jsonRequestBody(params)
-        }
+    private fun makeNetworkErrorMessage(message : String?, details: String?): String {
+        return setOf(message.orEmpty(), details.orEmpty()).joinToString()
     }
 
-    private fun jsonRequestBody(params: Map<String, Any>): String {
-        return gson.toJson(params)
-    }
+    companion object {
 
-    private fun encodeRequestBody(params: Map<String, Any>): String {
-        val builder = StringBuilder()
-        for ((key, value1) in params) {
-            try {
-                val value = URLEncoder.encode(value1.toString(), "UTF-8")
-                builder.append(key)
-                builder.append('=')
-                builder.append(value)
-                builder.append('&')
-            } catch (e: UnsupportedEncodingException) {
-                AcquiringSdk.log(e)
-            }
-        }
-
-        builder.setLength(builder.length - 1)
-
-        return builder.toString()
-    }
-
-    @Throws(IOException::class)
-    private fun read(reader: InputStreamReader): String {
-        val buffer = CharArray(STREAM_BUFFER_SIZE)
-        var read: Int = -1
-        val result = StringBuilder()
-
-        while ({ read = reader.read(buffer, 0, STREAM_BUFFER_SIZE); read }() != -1) {
-            result.append(buffer, 0, read)
-        }
-
-        return result.toString()
-    }
-
-    private fun closeQuietly(closeable: Closeable?) {
-        if (closeable == null) {
-            return
-        }
-
-        try {
-            closeable.close()
-        } catch (e: IOException) {
-            AcquiringSdk.log(e)
-        }
-    }
-
-    private fun createGson(): Gson {
-        return GsonBuilder()
+        fun createGson(): Gson {
+            return GsonBuilder()
+                .disableHtmlEscaping()
                 .excludeFieldsWithModifiers(Modifier.TRANSIENT, Modifier.STATIC)
                 .setExclusionStrategies(SerializableExclusionStrategy())
                 .registerTypeAdapter(CardStatus::class.java, CardStatusSerializer())
@@ -250,5 +202,6 @@ internal class NetworkClient {
                 .registerTypeAdapter(Tax::class.java, TaxSerializer())
                 .registerTypeAdapter(Taxation::class.java, TaxationSerializer())
                 .create()
+        }
     }
 }

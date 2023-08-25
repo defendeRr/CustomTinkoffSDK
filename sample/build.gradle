@@ -1,24 +1,53 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-android-extensions'
-apply from: '../gradle/versions.gradle'
+apply from: rootProject.file('gradle/versions.gradle')
 
 android {
-    compileSdkVersion compileSdk
-    buildToolsVersion buildTools
+    compileSdkVersion rootProject.compileSdk
+    buildToolsVersion rootProject.buildTools
+
+    signingConfigs {
+        debug {
+            storeFile file("debug.keystore")
+            storePassword 'android'
+            keyAlias 'androidDebugKey'
+            keyPassword 'android'
+        }
+    }
 
     defaultConfig {
         applicationId "ru.tinkoff.acquiring.sample"
-        minSdkVersion minSdk
-        targetSdkVersion compileSdk
+        minSdkVersion rootProject.minSdk
+        targetSdkVersion rootProject.compileSdk
         versionCode Integer.parseInt(VERSION_CODE)
         versionName VERSION_NAME
+        manifestPlaceholders = [
+                YANDEX_CLIENT_ID: "9dc6814e39204c638222dede9561ea6f"
+        ]
     }
     buildTypes {
-        release {
-            minifyEnabled false
+        debug {
+            minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    testOptions {
+        unitTests.returnDefaultValues = true
+        unitTests.all {
+            useJUnitPlatform()
+        }
+    }
+    lintOptions {
+        disable 'NetworkSecurityConfig'
     }
 }
 
@@ -28,11 +57,17 @@ dependencies {
 
     implementation "androidx.preference:preference:$preferenceVersion"
     implementation "androidx.appcompat:appcompat:$appCompatVersion"
+    implementation "androidx.constraintlayout:constraintlayout:2.1.4"
+    implementation "com.google.android.material:material:${materialVersion}"
+    implementation "com.google.code.gson:gson:$gsonVersion"
 
     testImplementation 'junit:junit:4.13'
     androidTestImplementation 'androidx.test:runner:1.2.0'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
 
     implementation project(':ui')
+    implementation project(':yandexpay')
     implementation project(':cardio')
+    implementation project(':threeds-sdk')
+    implementation project(':threeds-wrapper')
 }

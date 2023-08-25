@@ -21,7 +21,10 @@
     <string name="activity_title_details">Книга</string>
     <string name="activity_title_cart">Корзина</string>
     <string name="activity_title_attach_card">Привязать карту</string>
+    <string name="activity_title_attach_card_manually">Привязать карту вручную</string>
+    <string name="activity_title_terminals">Терминалы</string>
     <string name="activity_title_about">О программе</string>
+    <string name="activity_title_env">Окружение</string>
     <string name="activity_title_static_qr">Открыть статический QR код</string>
     <string name="activity_title_dynamic_qr">Принять оплату QR</string>
     <string name="activity_title_settings">Настройки</string>
@@ -29,6 +32,7 @@
     <string name="activity_title_saved_cards">Сохраненные карты</string>
     <string name="activity_title_send_notification">Отправить уведомление</string>
     <string name="activity_title_book_subscription">Подписка на книги</string>
+    <string name="activity_title_environment">Окружение</string>
 
     <string name="author">Автор</string>
     <string name="year">Год выпуска</string>
@@ -47,6 +51,7 @@
     <string name="version">Tinkoff Acquiring SDK v%1$s(%2$d)</string>
     <string name="pay_with">Оплатить через</string>
     <string name="buy_with_card">Оплатить по карте</string>
+    <string name="buy_with_recurrent">Родительский платеж</string>
     <string name="total_sum">Итого к оплате:</string>
 
     <string name="payment_failed">Невозможно совершить оплату</string>
@@ -61,15 +66,17 @@
     <string name="cart_list_item_count_format">"%1$d шт. "</string>
 
     <string name="settings_title_use_system_keyboard">Использовать системную клавиатуру</string>
+    <string name="settings_title_validate_expiry_date">Валидировать срок действия карты</string>
     <string name="settings_title_recurrent_payment">Рекуррентный платёж</string>
     <string name="settings_title_handle_cards_list_error">Обработать ошибки получения списка карт в SDK</string>
-    <string name="settings_title_google_pay">GooglePay</string>
     <string name="settings_title_fps">Система быстрых платежей</string>
-    <string name="settings_title_terminal_id">Терминал</string>
+    <string name="settings_title_tinkoff_pay">Tinkoff Pay</string>
+    <string name="settings_title_yandex_pay">Yandex Pay</string>
     <string name="settings_title_style_id">Стиль</string>
     <string name="settings_title_dark_mode_id">Темная тема</string>
     <string name="settings_title_check_type_id">CheckType</string>
     <string name="settings_title_camera">Модуль камеры</string>
+    <string name="settings_title_combi_init">Combi - Init</string>
 
     <string name="attachment_failed">Невозможно завершить привязку карты</string>
     <string name="attachment_cancelled">Привязка карты была отменена</string>
@@ -79,4 +86,5 @@
     <string name="notification_channel_name">Платежные уведомления</string>
     <string name="notification_order_title_subscription_renewal">Продление подписки</string>
     <string name="notification_payment_success">Подписка успешно продлена!</string>
+    <string name="bank_list">Список банков</string>
 </resources>

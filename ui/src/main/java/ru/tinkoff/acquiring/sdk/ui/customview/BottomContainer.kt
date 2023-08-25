@@ -25,6 +25,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.graphics.Point
+import android.graphics.Rect
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.VelocityTracker
@@ -63,6 +64,7 @@ internal class BottomContainer @JvmOverloads constructor(
     private var layoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null
     private var velocityTracker: VelocityTracker? = null
     private var initAnimation: AnimatorSet? = null
+    private var expandAnimation: Animator? = null
     private var scrollableView: View? = null
     private var background: FrameLayout? = null
     private var isFullScreenOpened = false
@@ -107,7 +109,6 @@ internal class BottomContainer @JvmOverloads constructor(
 
         setBackgroundResource(R.drawable.acq_top_rounded_background)
 
-        scrollableView = findViewById(R.id.acq_payment_tv_order_description) ?: findViewById(R.id.acq_sbp_banks_list)
         background = (this.parent as View).findViewById(R.id.acq_activity_background_layout)
         background?.apply {
             visibility = View.GONE
@@ -175,10 +176,9 @@ internal class BottomContainer @JvmOverloads constructor(
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         super.onLayout(changed, left, top, right, bottom)
-        if (changed) {
-            if (initialPositionY == 0) {
-                initialPositionY = height - getChildHeight()
-            }
+        val prevInitialPositionY = initialPositionY
+        initialPositionY = height - getChildHeight()
+        if (prevInitialPositionY == 0 || prevInitialPositionY != initialPositionY) {
             if (showInitAnimation) {
                 if (initialPositionY <= topPositionY) {
                     initialPositionY = statusBarHeight
@@ -188,13 +188,17 @@ internal class BottomContainer @JvmOverloads constructor(
                 }
             } else {
                 if (isExpanded) {
-                    setToPosition(expandedPositionY)
+                    if (expandAnimation?.isRunning != true) {
+                        setToPosition(expandedPositionY)
+                    }
                 } else {
                     if (initialPositionY <= topPositionY || containerState == STATE_FULLSCREEN) {
                         openFullScreen()
                     } else {
                         if (containerState == STATE_SHOWED) {
-                            setToPosition(initialPositionY.toFloat())
+                            if (initAnimation?.isRunning != true) {
+                                setToPosition(initialPositionY.toFloat())
+                            }
                         } else {
                             setToPosition(screenHeight.toFloat())
                         }
@@ -293,7 +297,7 @@ internal class BottomContainer @JvmOverloads constructor(
         initAnimation = AnimatorSet().apply {
             playTogether(startAnimations)
             addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationStart(animation: Animator?) {
+                override fun onAnimationStart(animation: Animator) {
                     background?.visibility = View.VISIBLE
                     containerState = STATE_SHOWED
                     containerStateListener?.onShowed()
@@ -339,7 +343,7 @@ internal class BottomContainer @JvmOverloads constructor(
                 DecelerateInterpolator())
                 .apply {
                     addListener(object : AnimatorListenerAdapter() {
-                        override fun onAnimationEnd(animation: Animator?) {
+                        override fun onAnimationEnd(animation: Animator) {
                             this@BottomContainer.y = destinyPositionY.toFloat()
                             setBackgroundColor(ContextCompat.getColor(context, R.color.acq_colorMain))
                             containerState = STATE_FULLSCREEN
@@ -360,16 +364,17 @@ internal class BottomContainer @JvmOverloads constructor(
             return
         }
 
-        getTranslationYAnimator(this, expandedPositionY, MOVING_ANIMATION_DURATION,
+        expandAnimation = getTranslationYAnimator(this, expandedPositionY, MOVING_ANIMATION_DURATION,
                 DecelerateInterpolator())
                 .apply {
                     addListener(object : AnimatorListenerAdapter() {
-                        override fun onAnimationEnd(animation: Animator?) {
+                        override fun onAnimationEnd(animation: Animator) {
                             this@BottomContainer.y = expandedPositionY
                             resizeScrollContainer()
                         }
                     })
-                }.start()
+                    start()
+                }
     }
 
     fun collapse() {
@@ -381,6 +386,12 @@ internal class BottomContainer @JvmOverloads constructor(
         }
         containerState = STATE_SHOWED
         moveToPosition(initialPositionY.toFloat())
+    }
+
+    fun containsRect(x: Int, y: Int): Boolean {
+        val containerRect = Rect()
+        getHitRect(containerRect)
+        return containerRect.contains(x, y)
     }
 
     private fun getChildHeight(): Int {
@@ -409,7 +420,7 @@ internal class BottomContainer @JvmOverloads constructor(
         return relativePosition
     }
 
-    private fun isScrollableViewTouch(x: Float, y: Float) : Boolean {
+    private fun isScrollableViewTouch(x: Float, y: Float): Boolean {
         val scrollViewPosition = getPositionInParent(scrollableView)
 
         val viewX = scrollViewPosition[0]
@@ -429,7 +440,7 @@ internal class BottomContainer @JvmOverloads constructor(
             scrollContainer.layoutParams.height = heightParam
             isScrollDisabled = false
         } else {
-            scrollContainer.layoutParams.height = ViewGroup.LayoutParams.MATCH_PARENT
+            scrollContainer.layoutParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
             isScrollDisabled = true
         }
         scrollContainer.requestLayout()
@@ -442,7 +453,7 @@ internal class BottomContainer @JvmOverloads constructor(
                 if (initAnimation != null && initAnimation!!.isRunning) {
                     initAnimation!!.apply {
                         addListener(object : AnimatorListenerAdapter() {
-                            override fun onAnimationEnd(animation: Animator?) {
+                            override fun onAnimationEnd(animation: Animator) {
                                 expand()
                             }
                         })

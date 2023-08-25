@@ -21,10 +21,13 @@ import android.content.SharedPreferences
 import androidx.annotation.StyleRes
 import androidx.preference.PreferenceManager
 import ru.tinkoff.acquiring.sample.R
+import ru.tinkoff.acquiring.sample.camera.DemoCameraScanActivity
 import ru.tinkoff.acquiring.sample.camera.DemoCameraScanner
 import ru.tinkoff.acquiring.sdk.cardscanners.CameraCardScanner
+import ru.tinkoff.acquiring.sdk.cardscanners.delegate.CardScannerContract
 import ru.tinkoff.acquiring.sdk.models.DarkThemeMode
 import ru.tinkoff.cardio.CameraCardIOScanner
+import ru.tinkoff.cardio.CameraCardIOScannerContract
 
 /**
  * @author Mariya Chernyadieva
@@ -38,26 +41,29 @@ class SettingsSdkManager(private val context: Context) {
             return !preferences.getBoolean(key, false)
         }
 
-    val terminalKey: String
-        get() {
-            val key = context.getString(R.string.acq_sp_terminal_id)
-            val fallback = SessionParams.DEFAULT.terminalKey
-            return preferences.getString(key, fallback)!!
-        }
+    val validateExpiryDate: Boolean
+        get() = preferences.getBoolean(context.getString(R.string.acq_sp_validate_expiry_date), false)
 
     val isRecurrentPayment: Boolean
         get() = preferences.getBoolean(context.getString(R.string.acq_sp_recurrent_payment), false)
 
-    val isGooglePayEnabled: Boolean
-        get() = preferences.getBoolean(context.getString(R.string.acq_sp_android_pay), true)
-
     val isFpsEnabled: Boolean
         get() = preferences.getBoolean(context.getString(R.string.acq_sp_fps), false)
+
+    val isTinkoffPayEnabled: Boolean
+        get() = preferences.getBoolean(context.getString(R.string.acq_sp_tinkoff_pay), true)
+
+    val yandexPayEnabled: Boolean
+        get() = preferences.getBoolean(context.getString(R.string.acq_sp_yandex_pay), true)
+
+    val isEnableCombiInit: Boolean
+        get() = preferences.getBoolean(context.getString(R.string.acq_sp_combi_init), true)
 
     val checkType: String
         get() {
             val defaultCheckType = context.getString(R.string.acq_sp_check_type_no)
-            return preferences.getString(context.getString(R.string.acq_sp_check_type_id), defaultCheckType) ?: defaultCheckType
+            return preferences.getString(context.getString(R.string.acq_sp_check_type_id), defaultCheckType)
+                    ?: defaultCheckType
         }
 
     val cameraScanner: CameraCardScanner
@@ -69,8 +75,24 @@ class SettingsSdkManager(private val context: Context) {
             } else DemoCameraScanner()
         }
 
+    val cameraScannerContract: CardScannerContract
+        get() {
+            val cardIOCameraScan = context.getString(R.string.acq_sp_camera_type_card_io)
+            val cameraScan = preferences.getString(context.getString(R.string.acq_sp_camera_type_id), cardIOCameraScan)
+            return if (cardIOCameraScan == cameraScan) CameraCardIOScannerContract else DemoCameraScanActivity.Contract
+        }
+
     val handleCardListErrorInSdk: Boolean
         get() = preferences.getBoolean(context.getString(R.string.acq_sp_handle_cards_error), true)
+
+    var customUrl: String?
+        set(value)  {
+            preferences.edit().apply {
+                putString(context.getString(R.string.acq_sp_custom_url), value)
+            }
+                .commit()
+        }
+        get() = preferences.getString(context.getString(R.string.acq_sp_custom_url), null)
 
     private val styleName: String?
         get() {

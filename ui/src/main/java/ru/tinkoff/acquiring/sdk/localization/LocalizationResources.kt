@@ -45,9 +45,11 @@ internal class LocalizationResources {
     var payPayViaButton: String? = null
 
     @SerializedName("Pay.PayButton")
+    @Deprecated("Deprecated: use payPayViaButton")
     var payPayButton: String? = null
 
     @SerializedName("Pay.OrText")
+    @Deprecated("Deprecated: 'Or' text is removed from payment screen")
     var payOrText: String? = null
 
     @SerializedName("Pay.PayWithFpsButton")
@@ -190,4 +192,10 @@ internal class LocalizationResources {
 
     @SerializedName("SbpWidget.AppsNotFound.ButtonBrowser")
     var sbpWidgetAppsNotFoundButtonBrowser: String? = null
+
+    @SerializedName("ThreeDs.Confirmation")
+    var threeDsConfirmation: String? = null
+
+    @SerializedName("ThreeDs.Cancel")
+    var threeDsCancel: String? = null
 }

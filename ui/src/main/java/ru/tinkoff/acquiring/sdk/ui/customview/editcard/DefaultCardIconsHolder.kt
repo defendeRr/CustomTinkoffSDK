@@ -26,6 +26,7 @@ import ru.tinkoff.acquiring.sdk.R
 import ru.tinkoff.acquiring.sdk.ui.customview.editcard.CardPaymentSystem.MAESTRO
 import ru.tinkoff.acquiring.sdk.ui.customview.editcard.CardPaymentSystem.MASTER_CARD
 import ru.tinkoff.acquiring.sdk.ui.customview.editcard.CardPaymentSystem.MIR
+import ru.tinkoff.acquiring.sdk.ui.customview.editcard.CardPaymentSystem.UNION_PAY
 import ru.tinkoff.acquiring.sdk.ui.customview.editcard.CardPaymentSystem.VISA
 
 /**
@@ -34,11 +35,12 @@ import ru.tinkoff.acquiring.sdk.ui.customview.editcard.CardPaymentSystem.VISA
 internal class DefaultCardIconsHolder(private val context: Context) : EditCardSystemIconsHolder {
 
     override fun getCardSystemLogo(cardNumber: String): Bitmap? {
-        val logoRes = when (CardPaymentSystem.resolvePaymentSystem(cardNumber)) {
+        val logoRes = when (CardPaymentSystem.resolve(cardNumber)) {
             MASTER_CARD -> R.drawable.acq_ic_master
             VISA -> R.drawable.acq_ic_visa_blue
             MIR -> R.drawable.acq_ic_mir
             MAESTRO -> R.drawable.acq_ic_maestro
+            UNION_PAY -> R.drawable.acq_ic_union_pay
             else -> return null
         }
 

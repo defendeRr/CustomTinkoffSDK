@@ -1,19 +1,20 @@
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-android-extensions'
-apply from: '../gradle/dokka.gradle'
-apply from: '../gradle/versions.gradle'
+apply plugin: 'org.jetbrains.dokka'
+apply from: rootProject.file('gradle/versions.gradle')
 apply from: '../gradle/publish.gradle'
 
 android {
-    compileSdkVersion compileSdk
-    buildToolsVersion buildTools
+    compileSdkVersion rootProject.compileSdk
+    buildToolsVersion rootProject.buildTools
 
     defaultConfig {
-        minSdkVersion minSdk
-        targetSdkVersion targetSdk
+        minSdkVersion rootProject.minSdk
+        targetSdkVersion rootProject.targetSdk
         versionCode Integer.parseInt(VERSION_CODE)
         versionName VERSION_NAME
+        buildConfigField("String", "ASDK_VERSION_NAME", "\"$VERSION_NAME\"")
     }
 
     buildTypes {
@@ -22,13 +23,26 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
+    lintOptions {
+        disable 'VectorRaster', 'UseRequireDrawableLoadingForDrawables', 'ObsoleteSdkInt', 'UnusedResources', 'IconDipSize', 'IconLocation'
+    }
+
+    buildFeatures {
+        viewBinding true
+    }
+}
+
+tasks.dokkaHtmlPartial.configure {
+    outputDirectory = file("../build/dokka/ui")
 }
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation "androidx.appcompat:appcompat:$appCompatVersion"
-    implementation "androidx.lifecycle:lifecycle-extensions:$lifecycleExtensionsVersion"
-    implementation "ru.tinkoff.core:core-nfc:$coreNfcVersion"
+    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycleExtensionsVersion"
+    implementation "ru.tinkoff.core.components.nfc:nfc:$coreNfcVersion"
+    implementation "ru.tinkoff.decoro:decoro:$decoroVersion"
 
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlinVersion"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$coroutinesVersion"
@@ -39,7 +53,31 @@ dependencies {
     api("com.google.android.gms:play-services-wallet:$googleWalletVersion")
     api project(':core')
 
+    implementation project(':threeds-sdk')
+    implementation project(':threeds-wrapper')
+    implementation "io.reactivex.rxjava2:rxjava:$rxJavaVersion"
+    implementation "com.squareup.okhttp3:okhttp:${okHttpVersion}"
+    implementation "com.squareup.okhttp3:logging-interceptor:${okHttpVersion}"
+    implementation "androidx.security:security-crypto:${cryptoVersion}"
+
+    // threeds dependencies
+    implementation "androidx.appcompat:appcompat:${appCompatVersion}"
+    implementation "androidx.fragment:fragment-ktx:${fragmentKtxVersion}"
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:${lifecycleRuntimeVersion}"
+    implementation "androidx.constraintlayout:constraintlayout:${constraintLayoutVersion}"
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+    implementation "com.nimbusds:nimbus-jose-jwt:${nimbusVersion}"
+    implementation "org.bouncycastle:bcprov-jdk15on:${bouncyCastleVersion}"
+    implementation "jp.wasabeef:blurry:${blurryVersion}"
+    implementation "com.scottyab:rootbeer-lib:${rootBeerVersion}"
+    implementation "androidx.recyclerview:recyclerview:${recyclerviewVersion}"
+    implementation "com.google.android.material:material:${materialVersion}"
+
     testImplementation 'junit:junit:4.13'
+    testImplementation "org.mockito.kotlin:mockito-kotlin:${mokitoKotlinVersion}"
+    testImplementation "org.mockito:mockito-inline:${mokitoInlineVersion}"
+    testImplementation "app.cash.turbine:turbine:${turbineVersion}"
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.6.4'
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
 }
