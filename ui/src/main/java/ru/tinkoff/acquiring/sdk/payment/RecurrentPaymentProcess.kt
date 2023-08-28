@@ -44,6 +44,7 @@ class RecurrentPaymentProcess internal constructor(
         paymentOptions: PaymentOptions,
         email: String? = null
     ) {
+        TinkoffAcquiring.email = email
         scope.launch(coroutineManager.io) {
             try {
                 startPaymentFlow(cardData, paymentOptions, email)
@@ -60,6 +61,7 @@ class RecurrentPaymentProcess internal constructor(
         paymentOptions: PaymentOptions,
         email: String?
     ) {
+        TinkoffAcquiring.email = email
         check(_state.value is PaymentByCardState.CvcUiNeeded)
         scope.launch(coroutineManager.io) {
             try {
@@ -106,7 +108,6 @@ class RecurrentPaymentProcess internal constructor(
         paymentOptions: PaymentOptions,
         email: String?
     ) {
-        TinkoffAcquiring.email = email
         val init = initMethods.init(paymentOptions, email)
         val paymentId = checkNotNull(init.paymentId) { "paymentId must be not null" }
         _state.value = PaymentByCardState.Started(paymentOptions, email, paymentId)

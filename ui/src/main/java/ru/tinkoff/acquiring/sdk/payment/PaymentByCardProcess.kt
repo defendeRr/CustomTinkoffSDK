@@ -4,6 +4,7 @@ import android.app.Application
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import ru.tinkoff.acquiring.sdk.AcquiringSdk
+import ru.tinkoff.acquiring.sdk.TinkoffAcquiring
 import ru.tinkoff.acquiring.sdk.exceptions.AcquiringApiException
 import ru.tinkoff.acquiring.sdk.exceptions.AcquiringSdkException
 import ru.tinkoff.acquiring.sdk.models.ThreeDsState
@@ -39,6 +40,7 @@ class PaymentByCardProcess internal constructor(
         paymentOptions: PaymentOptions,
         email: String? = null
     ) {
+        TinkoffAcquiring.email = email
         _state.value = PaymentByCardState.Started(paymentOptions, email)
         coroutineManager.launchOnBackground {
             try {
