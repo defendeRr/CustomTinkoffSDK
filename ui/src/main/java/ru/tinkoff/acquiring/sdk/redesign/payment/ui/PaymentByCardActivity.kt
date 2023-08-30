@@ -254,8 +254,14 @@ internal class PaymentByCardActivity : AppCompatActivity(),
         viewModel.state.collect {
             chosenCardContainer.isVisible = it.chosenCard != null
             cardDataInputContainer.isVisible = it.chosenCard == null
-            emailInputContainer.isVisible = it.sendReceipt
-            sendReceiptSwitch.isChecked = it.sendReceipt
+            if (startData.paymentOptions.features.emailRequired){
+                emailInputContainer.isVisible = true
+                sendReceiptSwitch.isChecked = true
+                sendReceiptSwitch.isVisible = false
+            }else{
+                emailInputContainer.isVisible = it.sendReceipt
+                sendReceiptSwitch.isChecked = it.sendReceipt
+            }
             payButton.text = getString(R.string.acq_cardpay_pay, it.amount)
 
             // TODO Удалить if в рамках задачи EACQAPW-5066
