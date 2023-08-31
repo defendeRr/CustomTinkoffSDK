@@ -80,12 +80,13 @@ internal class MainFormInputCardViewModel(
         byCardProcess.set3dsResult(paymentResult)
     }
 
-    fun pay() = coroutineManager.launchOnBackground {
+    fun pay(email: String? = null) = coroutineManager.launchOnBackground {
         val card = savedStateHandle.get<CardChosenModel>(CHOSEN_CARD)!!
         val cvc = savedStateHandle.get<String>(CVC_KEY)
         byCardProcess.start(
             paymentOptions = mainFormAnalyticsDelegate.prepareOptions(paymentOptions, ChosenMethod.Card),
-            cardData = AttachedCard(cardId = card.id, cvv = cvc)
+            cardData = AttachedCard(cardId = card.id, cvv = cvc),
+            email = email
         )
     }
 

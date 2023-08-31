@@ -17,6 +17,7 @@ import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.android.synthetic.main.acq_card_pay_component.emailInput
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import ru.tinkoff.acquiring.sdk.R
@@ -167,9 +168,10 @@ internal class MainPaymentFormActivity : AppCompatActivity() {
             onCvcCompleted = cardInputViewModel::setCvc,
             onEmailInput = cardInputViewModel::email,
             onEmailVisibleChange = cardInputViewModel::needEmail,
-            onChooseCardClick = viewModel::toChooseCard,
-            onPayClick = { cardInputViewModel.pay() }
-        )
+            onChooseCardClick = viewModel::toChooseCard
+        ).apply {
+            onPayClick = { cardInputViewModel.pay(inputEmailValue) }
+        }
     }
 
     private val secondaryButtonComponent by lazyUnsafe {

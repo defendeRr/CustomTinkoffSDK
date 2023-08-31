@@ -20,7 +20,7 @@ class CardPayComponent(
     private val onEmailInput: (String) -> Unit = {},
     private val onEmailVisibleChange: (Boolean) -> Unit = {},
     private val onChooseCardClick: () -> Unit = {},
-    private val onPayClick: () -> Unit = {}
+    var onPayClick: () -> Unit = {}
 ) {
     private val loaderButton: LoaderButton = viewBinding.loaderButton.apply {
         setOnClickListener { onPayClick() }
@@ -35,6 +35,9 @@ class CardPayComponent(
         onCvcCompleted = { cvc, _ -> onCvcCompleted(cvc) },
         onChangeCard = { onChooseCardClick() }
     )
+
+    val inputEmailValue: String
+        get() = emailInputComponent.emailValue
 
     fun render(state: CardChosenModel, email: String?, paymentOptions: PaymentOptions) {
         emailInputComponent.render(email, email.isNullOrBlank().not())
