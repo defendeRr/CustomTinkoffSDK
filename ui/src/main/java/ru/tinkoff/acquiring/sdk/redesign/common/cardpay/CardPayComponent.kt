@@ -29,7 +29,7 @@ class CardPayComponent(
         onEmailChange = { onEmailInput(it) },
         onEmailVisibleChange = { onEmailVisibleChange(it) }
     ).apply {
-        render(EmailInputComponent.State(email, email != null))
+        render(EmailInputComponent.State(email, true))
     }
     private val savedCardComponent = ChosenCardComponent(viewBinding.chosenCard.root,
         onCvcCompleted = { cvc, _ -> onCvcCompleted(cvc) },
@@ -40,7 +40,7 @@ class CardPayComponent(
         get() = emailInputComponent.emailValue
 
     fun render(state: CardChosenModel, email: String?, paymentOptions: PaymentOptions) {
-        emailInputComponent.render(email, email.isNullOrBlank().not())
+        emailInputComponent.render(email, true)
         savedCardComponent.render(state)
         loaderButton.text = viewBinding.root.resources.getString(
             R.string.acq_cardpay_pay,

@@ -52,8 +52,9 @@ class EmailInputComponent(
 
     override fun render(state: State) {
         emailInput.text = state.email
-        emailInput.isVisible = state.email?.isNotBlank() == true
-        sendReceiptSwitch.isChecked = emailInput.isVisible
+        emailInput.isVisible = state.isShow
+        sendReceiptSwitch.isChecked = state.isShow
+        sendReceiptSwitch.isVisible = !state.isShow
     }
 
     fun render(email: String?, isShow: Boolean) {
